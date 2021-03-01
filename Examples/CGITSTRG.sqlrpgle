@@ -26,7 +26,7 @@ CTL-OPT MAIN(Main) BNDDIR('CGISRVR1' :'WEDYAJL/YAJL');
 DCL-PR Main EXTPGM('CGITSTRG') END-PR;
 
 /INCLUDE QRPGLEH,CGISRVR1_H
-/INCLUDE WEDYAJL/QRPGLESRC,YAJL_H
+/INCLUDE QRPGLESRC,YAJL_H
 
 
 //#########################################################################
@@ -45,7 +45,7 @@ DCL-PROC Main;
  InputParmDS = getHTTPInput();
 
  If ( InputParmDS.Methode = 'GET' );
-   Index = %Lookup('knr' :InputParmDS.SeperatedKeysDS(*).Field);
+   Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
 
    yajl_GenOpen(*ON);
    generateJSONStream(Index :InputParmDS);
@@ -67,36 +67,29 @@ DCL-PROC generateJSONStream;
  END-PI;
 
  DCL-DS CustomerDS QUALIFIED INZ;
-  Number CHAR(10);
+  ID INT(10);
   Name1 CHAR(30);
   Name2 CHAR(30);
-  Name3 CHAR(30);
-  Street CHAR(30);
-  ZiP CHAR(10);
-  City CHAR(30);
-  Country CHAR(2);
  END-DS;
 
  DCL-S FirstRun IND INZ(*ON);
  DCL-S ArrayItem IND INZ(*OFF);
  DCL-S YajlError VARCHAR(500) INZ;
- DCL-S CustomerNumber CHAR(10) INZ;
+ DCL-S CustomerID INT(10) INZ;
  //------------------------------------------------------------------------
 
  If ( pIndex > 0 );
-   CustomerNumber = pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue;
+   CustomerID = %Int(pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue);
  EndIf;
 
  yajl_BeginObj();
 
  Exec SQL DECLARE c_customer_reader CURSOR FOR
-           SELECT k00.k00knr, k00.k00na1, k00.k00na2, k00.k00na3,
-                  k00.k00str, k00.k00zip, k00.k00cit, k00.k00lnd
-             FROM ccdaten.k00
-            WHERE k00.k00knr = CASE WHEN :CustomerNumber = '' THEN k00.k00knr
-                                    ELSE :CustomerNumber END
-              AND k00.k00del = '' AND k00.k00spl = ''
-            ORDER BY k00.k00div, k00.k00knr LIMIT 10;
+           SELECT customers.cust_id, customers.name1, customers.name2
+             FROM customers
+            WHERE customers.cust_id = CASE WHEN :CustomerID = 0 THEN customers.cust_id
+                                           ELSE :CustomerID END
+            ORDER BY customers.cust_id LIMIT 10;
  Exec SQL OPEN c_customer_reader;
 
  DoW ( 1 = 1 );
@@ -114,19 +107,14 @@ DCL-PROC generateJSONStream;
    If FirstRun;
      FirstRun= *OFF;
      yajl_AddBool('success' :'1');
-     yajl_BeginArray('items');
+     yajl_BeginArray('customers');
      ArrayItem = *ON;
    EndIf;
 
    yajl_BeginObj();
-   yajl_AddChar('customerNumber' :%TrimR(CustomerDS.Number));
+   yajl_AddNum('customerID' :%Char(CustomerDS.ID));
    yajl_AddChar('customerName1' :%TrimR(CustomerDS.Name1));
    yajl_AddChar('customerName2' :%TrimR(CustomerDS.Name2));
-   yajl_AddChar('customerName3' :%TrimR(CustomerDS.Name3));
-   yajl_AddChar('street' :%TrimR(CustomerDS.Street));
-   yajl_AddChar('zip' :%TrimR(CustomerDS.ZiP));
-   yajl_AddChar('city' :%TrimR(CustomerDS.City));
-   yajl_AddChar('country' :%TrimR(CustomerDS.Country));
    yajl_EndObj();
 
  EndDo;

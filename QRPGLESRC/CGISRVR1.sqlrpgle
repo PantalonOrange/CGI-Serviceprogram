@@ -20,8 +20,8 @@
 //- SOFTWARE.
 
 // Create servieprogram with folloing command:
-// CRTSRVPGM SRVPGM(WEDSOCKET/CGISRVR1) MODULE(WEDSOCKET/CGISRVR1) EXPORT(*ALL)
-//  SRCFILE(WEDSOCKET/QSRVSRC) USRPRF(*OWNER) REPLACE(*YES) AUT(*USE) STGMDL(*SNGLVL)
+// CRTSRVPGM SRVPGM(CGISRVR1) MODULE(CGISRVR1) EXPORT(*ALL)
+//  SRCFILE(QSRVSRC) USRPRF(*OWNER) REPLACE(*YES) AUT(*USE) STGMDL(*SNGLVL)
 
 
 /DEFINE CTL_SRVPGM
@@ -181,7 +181,8 @@ DCL-PROC parseQueryString;
  Exec SQL DECLARE c_split_reader CURSOR FOR
            SELECT CAST(splitter.element AS VARCHAR(128))
              FROM TABLE(systools.split(:pQueryString, :Seperator)) AS splitter
-            ORDER BY splitter.ordinal_position;
+            ORDER BY splitter.ordinal_position
+            LIMIT :MAX_SEP_KEYS;
  Exec SQL OPEN c_split_reader;
  Exec SQL FETCH NEXT FROM c_split_reader FOR :MAX_SEP_KEYS ROWS INTO :ResultDS;
  RowsFetched = SQLEr3;
@@ -219,7 +220,8 @@ DCL-PROC seperateValues;
  Exec SQL DECLARE c_seperate_reader CURSOR FOR
            SELECT CAST(seperator.element AS VARCHAR(128))
              FROM TABLE(systools.split(:pValues, :Seperator)) AS seperator
-            ORDER BY seperator.ordinal_position;
+            ORDER BY seperator.ordinal_position
+            LIMIT 2;
  Exec SQL OPEN c_seperate_reader;
  Exec SQL FETCH NEXT FROM c_seperate_reader FOR 2 ROWS INTO :ResultDS;
  Exec SQL CLOSE c_seperate_reader;
