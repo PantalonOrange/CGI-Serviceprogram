@@ -179,7 +179,7 @@ DCL-PROC parseJSONStream;
      If ( CustList <> *NULL );
 
        DoW yajl_Array_Loop(CustList :Index :NodeTree);
-       
+
          Val = yajl_Object_Find(NodeTree :'customerID');
          If ( Val <> *NULL );
            CustomerDS.ID = %Int(yajl_Get_Number(Val));
@@ -222,7 +222,7 @@ DCL-PROC parseJSONStream;
  If Success;
    writeHTTPOut(*NULL :0 :HTTP_OK);
  Else;
-   writeHTTPOut(*NULL :0 :HTTP_BAD_REQUEST);
+   writeHTTPOut(%Addr(YajlError) :%Len(%Trim(YajlError)) :HTTP_BAD_REQUEST);
  EndIf;
 
 END-PROC;
@@ -266,15 +266,17 @@ DCL-PROC deleteCustomer;
  END-PI;
 
  DCL-S CustomerID INT(10) INZ;
+ DCL-S SQLError VARCHAR(128) INZ;
  //------------------------------------------------------------------------
 
  CustomerID = %Int(pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue);
- Exec SQL DELETE FROM customers WHERE cust_id = :CustomerID;
+ Exec SQL DELETE FROM customers WHERE customers.cust_id = :CustomerID;
 
  If ( SQLCode = 0 );
    writeHTTPOut(*NULL :0 :HTTP_OK);
  Else;
-   writeHTTPOut(*NULL :0 :HTTP_BAD_REQUEST);
+   Exec SQL GET DIAGNOSTICS CONDITION 1 :SQLError = MESSAGE_TEXT;
+   writeHTTPOut(%Addr(SQLError) :%Len(%Trim(SQLError)) :HTTP_BAD_REQUEST);
  EndIf;
 
 END-PROC;
