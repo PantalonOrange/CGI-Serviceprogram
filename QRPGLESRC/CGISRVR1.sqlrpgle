@@ -34,6 +34,7 @@ CTL-OPT BNDDIR('QZHBCGI');
 
 
 //#########################################################################
+// get environment variables and handle incomming data
 DCL-PROC getHTTPInput EXPORT;
  DCL-PI *N LIKEDS(ParmInputDS_T) END-PI;
 
@@ -85,7 +86,7 @@ DCL-PROC getHTTPInput EXPORT;
        ParmInputDS.SeperatedKeysDS = parseQueryString(QueryString);
      EndIf;
 
-   When ( InputMethode = 'POST' );
+   When ( InputMethode = 'POST' ) Or ( InputMethode = 'PUT' );
      Select;
        When ( %Scan('text/json' :ContentType) > 0 ) Or
             ( %Scan('application/json' :ContentType) > 0 ); // json stream
@@ -162,19 +163,19 @@ DCL-PROC getHTTPHeader EXPORT;
                    'content-type: application/json; charset=utf-8' + CRLF + CRLF;
    When ( pType = HTTP_OK );
      HTTPHeader = 'status: 200 OK' + CRLF +
-                   'content-type: plain/text' + CRLF + CRLF;
+                   'content-type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_BAD_REQUEST );
-     HTTPHeader = 'status: 400' + CRLF + 
-                   'content-type: plain/text' + CRLF + CRLF;
+     HTTPHeader = 'status: 400' + CRLF +
+                   'content-type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_UNAUTHORIZED );
      HTTPHeader = 'status: 401' + CRLF +
-                   'content-type: plain/text' + CRLF + CRLF;
+                   'content-type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_FORBIDDEN );
      HTTPHeader = 'status: 403' + CRLF +
-                   'content-type: plain/text' + CRLF + CRLF;
+                   'content-type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_NOT_FOUND );
      HTTPHeader = 'status: 404' + CRLF +
-                   'content-type: plain/text' + CRLF + CRLF;
+                   'content-type: text/plain' + CRLF + CRLF;
  EndSl;
 
  Return HTTPHeader;
@@ -207,6 +208,7 @@ END-PROC;
 
 
 //#########################################################################
+// split incomming querystring (id=1&name=5 -> id=1 and name=5 etc)
 DCL-PROC parseQueryString;
  DCL-PI *N LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);
   pQueryString CHAR(128) CONST;
@@ -248,6 +250,7 @@ DCL-PROC parseQueryString;
 END-PROC;
 
 //#########################################################################
+// split single query (id=1 -> id and 1 etc)
 DCL-PROC seperateValues;
  DCL-PI *N LIKEDS(SeperatedKeysDS_T);
   pValues CHAR(128) CONST;

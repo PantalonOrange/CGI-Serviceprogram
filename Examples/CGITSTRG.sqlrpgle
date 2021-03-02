@@ -63,7 +63,10 @@ DCL-PROC Main;
    yajl_GenClose();
 
  ElseIf ( InputParmDS.Methode = 'POST' );
-   parseJSONStream(InputParmDS);
+   parseJSONStream(InputParmDS :InputParmDS.Methode);
+
+ ElseIf ( InputParmDS.Methode = 'PUT' );
+   parseJSONStream(InputParmDS :InputParmDS.Methode);
 
  ElseIf ( InputParmDS.Methode = 'DELETE' );
    Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
@@ -150,6 +153,7 @@ END-PROC;
 DCL-PROC parseJSONStream;
  DCL-PI *N;
   pInputParmDS LIKEDS(ParmInputDS_T) CONST;
+  pMethode CHAR(10) CONST;
  END-PI;
 
  DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
@@ -166,16 +170,21 @@ DCL-PROC parseJSONStream;
    translateData(pInputParmDS.Data :pInputParmDS.DataLength :UTF8 :0);
    YajlError = %Str(pInputParmDS.Data);
    NodeTree = yajl_Buf_Load_Tree(pInputParmDS.Data :pInputParmDS.DataLength :YajlError);
-   
+
    Success = ( NodeTree <> *NULL );
-   
+
    If Success;
      CustList = yajl_Object_Find(NodeTree :'customers');
-   
+
      If ( CustList <> *NULL );
-   
+
        DoW yajl_Array_Loop(CustList :Index :NodeTree);
-   
+       
+         Val = yajl_Object_Find(NodeTree :'customerID');
+         If ( Val <> *NULL );
+           CustomerDS.ID = %Int(yajl_Get_Number(Val));
+         EndIf;
+
          Val = yajl_Object_Find(NodeTree :'customerName1');
          If ( Val <> *NULL );
            CustomerDS.Name1 = yajl_Get_String(Val);
@@ -185,20 +194,24 @@ DCL-PROC parseJSONStream;
          If ( Val <> *NULL );
            CustomerDS.Name2 = yajl_Get_String(Val);
          EndIf;
-       
+
          If ( CustomerDS.Name1 <> '' ) Or ( CustomerDS.Name2 <> '' );
-           insertCustomer(CustomerDS);
+           If ( pMethode = 'POST' );
+             insertCustomer(CustomerDS);
+           ElseIf ( pMethode = 'PUT' );
+             updateCustomer(CustomerDS);
+           EndIf;
          EndIf;
-       
+
        EndDo;
-   
+
      Else;
        Success = FALSE;
-     
+
      EndIf;
 
      yajl_Tree_Free(NodeTree);
-     
+
    EndIf;
 
  Else;
@@ -224,7 +237,24 @@ DCL-PROC insertCustomer;
 
  Exec SQL INSERT INTO customers (name1, name2)
           VALUES(RTRIM(:pCustomerDS.Name1), RTRIM(:pCustomerDS.Name2));
- 
+
+END-PROC;
+
+//#########################################################################
+// update existing customer
+DCL-PROC updateCustomer;
+ DCL-PI *N;
+  pCustomerDS LIKEDS(CustomerDS_T) CONST;
+ END-PI;
+ //------------------------------------------------------------------------
+
+ Exec SQL UPDATE customers
+             SET customers.name1 = RTRIM(:pCustomerDS.Name1),
+                 customers.name2 = RTRIM(:pCustomerDS.Name2)
+           WHERE customers.cust_id = :pCustomerDS.ID
+             AND (RTRIM(customers.name1) <> RTRIM(:pCustomerDS.Name1) OR
+                  RTRIM(customers.name2) <> RTRIM(:pCustomerDS.Name2));
+
 END-PROC;
 
 //#########################################################################
@@ -240,7 +270,7 @@ DCL-PROC deleteCustomer;
 
  CustomerID = %Int(pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue);
  Exec SQL DELETE FROM customers WHERE cust_id = :CustomerID;
- 
+
  If ( SQLCode = 0 );
    writeHTTPOut(*NULL :0 :HTTP_OK);
  Else;
