@@ -109,8 +109,11 @@ DCL-PROC getHTTPInput EXPORT;
          EndIf;
 
      EndSl;
-
-
+   When ( InputMethode = 'DELETE' );
+     ParmInputDS.Methode = InputMethode;
+     If ( QueryString <> '' );
+       ParmInputDS.SeperatedKeysDS = parseQueryString(QueryString);
+     EndIf;
 
  EndSl;
 
@@ -124,6 +127,7 @@ DCL-PROC writeHTTPOut EXPORT;
  DCL-PI *N;
   pData POINTER VALUE;
   pDataLength INT(10) CONST;
+  pType UNS(3) CONST;
  END-PI;
 
  /INCLUDE QRPGLECPY,QTMHWRSTOU
@@ -133,24 +137,71 @@ DCL-PROC writeHTTPOut EXPORT;
  DCL-S HTTPHeader CHAR(128) INZ;
  //------------------------------------------------------------------------
 
- HTTPHeader = getHTTPHeader();
+ HTTPHeader = getHTTPHeader(pType);
  writeStdOut(%Addr(HTTPHeader) :%Len(%TrimR(HTTPHeader)) :ErrorDS);
 
- writeStdOut(pData :pDataLength :ErrorDS);
+ If ( pData <> *NULL );
+   writeStdOut(pData :pDataLength :ErrorDS);
+ EndIf;
 
 END-PROC;
 
 
 //#########################################################################
 DCL-PROC getHTTPHeader EXPORT;
- DCL-PI *N CHAR(128) END-PI;
+ DCL-PI *N CHAR(128);
+  pType UNS(3) CONST;
+ END-PI;
 
  DCL-S HTTPHeader CHAR(128) INZ;
  //------------------------------------------------------------------------
 
- HTTPHeader = 'status: 200 OK' + CRLF +
-              'Content-type: application/json; charset=utf-8' + CRLF + CRLF;
+ Select;
+   When ( pType = HTTP_JSON_OK );
+     HTTPHeader = 'status: 200 OK' + CRLF +
+                   'content-type: application/json; charset=utf-8' + CRLF + CRLF;
+   When ( pType = HTTP_OK );
+     HTTPHeader = 'status: 200 OK' + CRLF +
+                   'content-type: plain/text' + CRLF + CRLF;
+   When ( pType = HTTP_BAD_REQUEST );
+     HTTPHeader = 'status: 400' + CRLF + 
+                   'content-type: plain/text' + CRLF + CRLF;
+   When ( pType = HTTP_UNAUTHORIZED );
+     HTTPHeader = 'status: 401' + CRLF +
+                   'content-type: plain/text' + CRLF + CRLF;
+   When ( pType = HTTP_FORBIDDEN );
+     HTTPHeader = 'status: 403' + CRLF +
+                   'content-type: plain/text' + CRLF + CRLF;
+   When ( pType = HTTP_NOT_FOUND );
+     HTTPHeader = 'status: 404' + CRLF +
+                   'content-type: plain/text' + CRLF + CRLF;
+ EndSl;
+
  Return HTTPHeader;
+
+END-PROC;
+
+//#########################################################################
+DCL-PROC translateData EXPORT;
+ DCL-PI *N;
+  pData POINTER CONST;
+  pDataLength INT(10) CONST;
+  pFromCCSID INT(10) CONST;
+  pToCCSID INT(10) CONST;
+ END-PI;
+
+ /INCLUDE QRPGLECPY,ICONV
+ //------------------------------------------------------------------------
+
+ iConvDS.iConvHandler = pData;
+ iConvDS.Length = pDataLength;
+ FromDS.FromCCSID = pFromCCSID;
+ ToDS.ToCCSID = pToCCSID;
+ ToASCII = iConv_Open(ToDS :FromDS);
+ If ( ToASCII.ICORV_A >= 0 );
+   iConv(ToASCII :iConvDS.iConvHandler :iConvDS.Length :iConvDS.iConvHandler :iConvDS.Length);
+ EndIf;
+ iConv_Close(ToASCII);
 
 END-PROC;
 

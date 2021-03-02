@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021 Christian Brunner
+//- Copyright (c) 2019 - 2021 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -19,61 +19,55 @@
 //- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //- SOFTWARE.
 
-/IF DEFINED (CGISRVR1_H)
+/IF DEFINED (API_ICONV)
 /EOF
 /ENDIF
 
-/DEFINE CGISRVR1_H
+/DEFINE API_ICONV
 
-
-DCL-PR getHTTPInput LIKEDS(ParmInputDS_T) END-PR;
-
-DCL-PR writeHTTPOut;
- Data POINTER VALUE;
- DataLenth INT(10) CONST;
- Type UNS(3) CONST;
+DCL-PR iConv_Open LIKE(ToASCII) EXTPROC('QtqIconvOpen');
+  ToCode LIKE(FromDS);
+  FromCode LIKE(ToDS);
 END-PR;
 
-DCL-PR getHTTPHeader CHAR(128);
- Type UNS(3) CONST;
+DCL-PR iConv INT(10) EXTPROC('iconv');
+  Descriptor LIKE(ToASCII) VALUE;
+  InBuff POINTER;
+  InLeft UNS(10);
+  OutBuffer POINTER;
+  OutLeft UNS(10);
 END-PR;
 
-DCL-PR translateData;
- Data POINTER CONST;
- DataLength INT(10) CONST;
- FromCCSID INT(10) CONST;
- ToCCSID INT(10) CONST;
+DCL-PR iConv_Close INT(10) EXTPROC('iconv_close');
+  Descriptor LIKE(ToASCII) VALUE;
 END-PR;
 
-
-DCL-C HTTP_JSON_OK 0;
-DCL-C HTTP_OK 1;
-DCL-C HTTP_BAD_REQUEST 2;
-DCL-C HTTP_UNAUTHORIZED 3;
-DCL-C HTTP_FORBIDDEN 4;
-DCL-C HTTP_NOT_FOUND 5;
-
-DCL-C UTF8 1208;
-
-DCL-DS ParmInputDS_T QUALIFIED TEMPLATE;
- Data POINTER;
- DataLength INT(10);
- Methode CHAR(20);
- ContentType CHAR(128);
- AuthType CHAR(128);
- RemoteUser CHAR(128);
- SeperatedKeysDS LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);
+DCL-DS ToASCII QUALIFIED INZ;
+  ICORV_A INT(10);
+  ICOC_A INT(10) DIM(12);
 END-DS;
 
-DCL-C MAX_SEP_KEYS 20;
-DCL-DS SeperatedKeysDS_T QUALIFIED TEMPLATE;
- Field CHAR(128);
- ExtractedValue CHAR(128);
+DCL-DS FromDS QUALIFIED;
+  FromCCSID INT(10) INZ;
+  CA INT(10) INZ;
+  SA INT(10) INZ;
+  SS INT(10) INZ;
+  IL INT(10) INZ;
+  EO INT(10) INZ;
+  R CHAR(8) INZ(*ALLX'00');
 END-DS;
 
+DCL-DS ToDS QUALIFIED;
+  ToCCSID INT(10) INZ;
+  CA INT(10) INZ;
+  SA INT(10) INZ;
+  SS INT(10) INZ;
+  IL INT(10) INZ;
+  EO INT(10) INZ;
+  R CHAR(8) INZ(*ALLX'00');
+END-DS;
 
-/IF DEFINED (COMPILE_CGISRVR1)
-/INCLUDE QRPGLECPY,ERRORDS_H
-/INCLUDE QRPGLECPY,BOOLIC
-DCL-C CRLF x'0D25';
-/ENDIF
+DCL-DS iConvDS QUALIFIED INZ;
+  iConvHandler POINTER;
+  Length UNS(10);
+END-DS;

@@ -21,18 +21,26 @@
 
 
 /INCLUDE QRPGLECPY,H_SPECS
-CTL-OPT MAIN(Main) BNDDIR('CGISRVR1' :'WEDYAJL/YAJL');
+CTL-OPT MAIN(Main) BNDDIR('CGISRVR1' :'YAJL');
 
 DCL-PR Main EXTPGM('CGITSTRG') END-PR;
 
 /INCLUDE QRPGLEH,CGISRVR1_H
 /INCLUDE QRPGLESRC,YAJL_H
+/INCLUDE QRPGLECPY,BOOLIC
+/INCLUDE QRPGLECPY,SYSTEM
 
+DCL-DS CustomerDS_T QUALIFIED TEMPLATE;
+ ID INT(10);
+ Name1 CHAR(30);
+ Name2 CHAR(30);
+END-DS;
 
 //#########################################################################
 DCL-PROC Main;
 
  DCL-DS InputParmDS LIKEDS(ParmInputDS_T) INZ;
+ DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
 
  DCL-S Index INT(10) INZ;
  DCL-S YajlError VARCHAR(500) INZ;
@@ -40,17 +48,28 @@ DCL-PROC Main;
 
  /INCLUDE QRPGLECPY,SQLOPTIONS
 
- *INLR = *ON;
+ *INLR = TRUE;
+
+ //system('DLYJOB DLY(30)');
 
  InputParmDS = getHTTPInput();
 
  If ( InputParmDS.Methode = 'GET' );
    Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
 
-   yajl_GenOpen(*ON);
+   yajl_GenOpen(TRUE);
    generateJSONStream(Index :InputParmDS);
    yajl_WriteStdOut(200 :YajlError);
    yajl_GenClose();
+
+ ElseIf ( InputParmDS.Methode = 'POST' );
+   parseJSONStream(InputParmDS);
+
+ ElseIf ( InputParmDS.Methode = 'DELETE' );
+   Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
+   If ( Index > 0 );
+     deleteCustomer(Index :InputParmDS);
+   EndIf;
 
  EndIf;
 
@@ -60,20 +79,18 @@ END-PROC;
 
 
 //#########################################################################
+// parse selected customer to json and return it
+//  if id = 0 all customers will be returned
 DCL-PROC generateJSONStream;
  DCL-PI *N;
   pIndex INT(10) CONST;
   pInputParmDS LIKEDS(ParmInputDS_T) CONST;
  END-PI;
 
- DCL-DS CustomerDS QUALIFIED INZ;
-  ID INT(10);
-  Name1 CHAR(30);
-  Name2 CHAR(30);
- END-DS;
+ DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
 
- DCL-S FirstRun IND INZ(*ON);
- DCL-S ArrayItem IND INZ(*OFF);
+ DCL-S FirstRun IND INZ(TRUE);
+ DCL-S ArrayItem IND INZ(FALSE);
  DCL-S YajlError VARCHAR(500) INZ;
  DCL-S CustomerID INT(10) INZ;
  //------------------------------------------------------------------------
@@ -105,10 +122,10 @@ DCL-PROC generateJSONStream;
    EndIf;
 
    If FirstRun;
-     FirstRun= *OFF;
+     FirstRun= FALSE;
      yajl_AddBool('success' :'1');
      yajl_BeginArray('customers');
-     ArrayItem = *ON;
+     ArrayItem = TRUE;
    EndIf;
 
    yajl_BeginObj();
@@ -126,5 +143,108 @@ DCL-PROC generateJSONStream;
  yajl_EndObj();
 
  Return;
+
+END-PROC;
+
+//#########################################################################
+DCL-PROC parseJSONStream;
+ DCL-PI *N;
+  pInputParmDS LIKEDS(ParmInputDS_T) CONST;
+ END-PI;
+
+ DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
+
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Index INT(10) INZ;
+ DCL-S NodeTree LIKE(yajl_Val) INZ;
+ DCL-S CustList LIKE(yajl_Val) INZ;
+ DCL-S Val Like(yajl_Val) INZ;
+ DCL-S YajlError VARCHAR(500) INZ;
+ //------------------------------------------------------------------------
+
+ If ( pInputParmDS.Data <> *NULL );
+   translateData(pInputParmDS.Data :pInputParmDS.DataLength :UTF8 :0);
+   YajlError = %Str(pInputParmDS.Data);
+   NodeTree = yajl_Buf_Load_Tree(pInputParmDS.Data :pInputParmDS.DataLength :YajlError);
+   
+   Success = ( NodeTree <> *NULL );
+   
+   If Success;
+     CustList = yajl_Object_Find(NodeTree :'customers');
+   
+     If ( CustList <> *NULL );
+   
+       DoW yajl_Array_Loop(CustList :Index :NodeTree);
+   
+         Val = yajl_Object_Find(NodeTree :'customerName1');
+         If ( Val <> *NULL );
+           CustomerDS.Name1 = yajl_Get_String(Val);
+         EndIf;
+
+         Val = yajl_Object_Find(NodeTree :'customerName2');
+         If ( Val <> *NULL );
+           CustomerDS.Name2 = yajl_Get_String(Val);
+         EndIf;
+       
+         If ( CustomerDS.Name1 <> '' ) Or ( CustomerDS.Name2 <> '' );
+           insertCustomer(CustomerDS);
+         EndIf;
+       
+       EndDo;
+   
+     Else;
+       Success = FALSE;
+     
+     EndIf;
+
+     yajl_Tree_Free(NodeTree);
+     
+   EndIf;
+
+ Else;
+   Success = FALSE;
+
+ EndIf;
+
+ If Success;
+   writeHTTPOut(*NULL :0 :HTTP_OK);
+ Else;
+   writeHTTPOut(*NULL :0 :HTTP_BAD_REQUEST);
+ EndIf;
+
+END-PROC;
+
+//#########################################################################
+// insert new customer
+DCL-PROC insertCustomer;
+ DCL-PI *N;
+  pCustomerDS LIKEDS(CustomerDS_T) CONST;
+ END-PI;
+ //------------------------------------------------------------------------
+
+ Exec SQL INSERT INTO customers (name1, name2)
+          VALUES(RTRIM(:pCustomerDS.Name1), RTRIM(:pCustomerDS.Name2));
+ 
+END-PROC;
+
+//#########################################################################
+// delete selected customer from table
+DCL-PROC deleteCustomer;
+ DCL-PI *N;
+  pIndex INT(10) CONST;
+  pInputParmDS LIKEDS(ParmInputDS_T) CONST;
+ END-PI;
+
+ DCL-S CustomerID INT(10) INZ;
+ //------------------------------------------------------------------------
+
+ CustomerID = %Int(pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue);
+ Exec SQL DELETE FROM customers WHERE cust_id = :CustomerID;
+ 
+ If ( SQLCode = 0 );
+   writeHTTPOut(*NULL :0 :HTTP_OK);
+ Else;
+   writeHTTPOut(*NULL :0 :HTTP_BAD_REQUEST);
+ EndIf;
 
 END-PROC;
