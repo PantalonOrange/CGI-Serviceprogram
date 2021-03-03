@@ -34,6 +34,8 @@ DCL-DS CustomerDS_T QUALIFIED TEMPLATE;
  ID INT(10);
  Name1 CHAR(30);
  Name2 CHAR(30);
+ LastChanged INT(20);
+ LastUser VARCHAR(128);
 END-DS;
 
 //#########################################################################
@@ -55,20 +57,24 @@ DCL-PROC Main;
  InputParmDS = getHTTPInput();
 
  If ( InputParmDS.Methode = 'GET' );
+   // submit customer-data to requester
    Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
 
    yajl_GenOpen(TRUE);
-   generateJSONStream(Index :InputParmDS);
+   generateJSONCustomerStream(Index :InputParmDS);
    yajl_WriteStdOut(200 :YajlError);
    yajl_GenClose();
 
  ElseIf ( InputParmDS.Methode = 'POST' );
-   parseJSONStream(InputParmDS :InputParmDS.Methode);
+   // add new customer
+   parseIncomingJSONStream(InputParmDS :InputParmDS.Methode);
 
  ElseIf ( InputParmDS.Methode = 'PUT' );
-   parseJSONStream(InputParmDS :InputParmDS.Methode);
+   // change selected customer
+   parseIncomingJSONStream(InputParmDS :InputParmDS.Methode);
 
  ElseIf ( InputParmDS.Methode = 'DELETE' );
+   // delete selected customer
    Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
    If ( Index > 0 );
      deleteCustomer(Index :InputParmDS);
@@ -84,7 +90,7 @@ END-PROC;
 //#########################################################################
 // parse selected customer to json and return it
 //  if id = 0 all customers will be returned
-DCL-PROC generateJSONStream;
+DCL-PROC generateJSONCustomerStream;
  DCL-PI *N;
   pIndex INT(10) CONST;
   pInputParmDS LIKEDS(ParmInputDS_T) CONST;
@@ -105,7 +111,8 @@ DCL-PROC generateJSONStream;
  yajl_BeginObj();
 
  Exec SQL DECLARE c_customer_reader CURSOR FOR
-           SELECT customers.cust_id, customers.name1, customers.name2
+           SELECT customers.cust_id, customers.name1, customers.name2,
+                  timestamp_unix(customers.change_stamp), customers.last_user
              FROM customers
             WHERE customers.cust_id = CASE WHEN :CustomerID = 0 THEN customers.cust_id
                                            ELSE :CustomerID END
@@ -118,7 +125,7 @@ DCL-PROC generateJSONStream;
      If FirstRun;
        Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
        yajl_AddBool('success' :'0');
-       yajl_AddChar('errmsg' :%TrimR(YajlError));
+       yajl_AddChar('errorMessage' :%TrimR(YajlError));
      EndIf;
      Exec SQL CLOSE c_customer_reader;
      Leave;
@@ -135,6 +142,8 @@ DCL-PROC generateJSONStream;
    yajl_AddNum('customerID' :%Char(CustomerDS.ID));
    yajl_AddChar('customerName1' :%TrimR(CustomerDS.Name1));
    yajl_AddChar('customerName2' :%TrimR(CustomerDS.Name2));
+   yajl_AddNum('lastChanged' :%Char(CustomerDS.LastChanged));
+   yajl_AddChar('lastUser' :%TrimR(CustomerDS.LastUser));
    yajl_EndObj();
 
  EndDo;
@@ -150,7 +159,7 @@ DCL-PROC generateJSONStream;
 END-PROC;
 
 //#########################################################################
-DCL-PROC parseJSONStream;
+DCL-PROC parseIncomingJSONStream;
  DCL-PI *N;
   pInputParmDS LIKEDS(ParmInputDS_T) CONST;
   pMethode CHAR(10) CONST;
@@ -201,12 +210,18 @@ DCL-PROC parseJSONStream;
            ElseIf ( pMethode = 'PUT' );
              updateCustomer(CustomerDS);
            EndIf;
+         
+         Else;
+           Success = FALSE;
+           YajlError = 'No valid data received.';
+           
          EndIf;
 
        EndDo;
 
      Else;
        Success = FALSE;
+       YajlError = 'No valid json stream received.';
 
      EndIf;
 
@@ -219,9 +234,7 @@ DCL-PROC parseJSONStream;
 
  EndIf;
 
- If Success;
-   writeHTTPOut(*NULL :0 :HTTP_OK);
- Else;
+ If Not Success;
    writeHTTPOut(%Addr(YajlError) :%Len(%Trim(YajlError)) :HTTP_BAD_REQUEST);
  EndIf;
 
@@ -233,10 +246,31 @@ DCL-PROC insertCustomer;
  DCL-PI *N;
   pCustomerDS LIKEDS(CustomerDS_T) CONST;
  END-PI;
+
+ DCL-S Success IND INZ(TRUE);
+ DCL-S NewCustomerID INT(10) INZ;
+ DCL-S YajlError VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
- Exec SQL INSERT INTO customers (name1, name2)
-          VALUES(RTRIM(:pCustomerDS.Name1), RTRIM(:pCustomerDS.Name2));
+ Exec SQL SELECT cust_id INTO :NewCustomerID FROM FINAL TABLE
+          (
+           INSERT INTO customers (name1, name2)
+           VALUES(RTRIM(:pCustomerDS.Name1), RTRIM(:pCustomerDS.Name2))
+          );
+ Success = ( SQLCode = 0 );
+
+ yajl_GenOpen(TRUE);
+ yajl_BeginObj();
+ yajl_AddBool('success' :Success);
+ If Success;
+   yajl_AddNum('newCustomerID' :%Char(NewCustomerID));
+ Else;
+   Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
+   yajl_AddChar('errorMessage' :%TrimR(YajlError));
+ EndIf;
+ yajl_EndObj();
+ yajl_WriteStdOut(200 :YajlError);
+ yajl_GenClose();
 
 END-PROC;
 
@@ -246,6 +280,9 @@ DCL-PROC updateCustomer;
  DCL-PI *N;
   pCustomerDS LIKEDS(CustomerDS_T) CONST;
  END-PI;
+
+ DCL-S Success IND INZ(TRUE);
+ DCL-S YajlError VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  Exec SQL UPDATE customers
@@ -254,6 +291,18 @@ DCL-PROC updateCustomer;
            WHERE customers.cust_id = :pCustomerDS.ID
              AND (RTRIM(customers.name1) <> RTRIM(:pCustomerDS.Name1) OR
                   RTRIM(customers.name2) <> RTRIM(:pCustomerDS.Name2));
+ Success = ( SQLCode = 0 );
+                  
+ yajl_GenOpen(TRUE);
+ yajl_BeginObj();
+ yajl_AddBool('success' :Success);
+ If Not Success;
+   Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
+   yajl_AddChar('errorMessage' :%TrimR(YajlError));
+ EndIf;
+ yajl_EndObj();
+ yajl_WriteStdOut(200 :YajlError);
+ yajl_GenClose();
 
 END-PROC;
 
@@ -265,18 +314,24 @@ DCL-PROC deleteCustomer;
   pInputParmDS LIKEDS(ParmInputDS_T) CONST;
  END-PI;
 
+ DCL-S Success IND INZ(TRUE);
  DCL-S CustomerID INT(10) INZ;
- DCL-S SQLError VARCHAR(128) INZ;
+ DCL-S YajlError VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  CustomerID = %Int(pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue);
  Exec SQL DELETE FROM customers WHERE customers.cust_id = :CustomerID;
+ Success = ( SQLCode = 0 );
 
- If ( SQLCode = 0 );
-   writeHTTPOut(*NULL :0 :HTTP_OK);
- Else;
-   Exec SQL GET DIAGNOSTICS CONDITION 1 :SQLError = MESSAGE_TEXT;
-   writeHTTPOut(%Addr(SQLError) :%Len(%Trim(SQLError)) :HTTP_BAD_REQUEST);
+ yajl_GenOpen(TRUE);
+ yajl_BeginObj();
+ yajl_AddBool('success' :Success);
+ If Not Success;
+   Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
+   yajl_AddChar('errorMessage' :%TrimR(YajlError));
  EndIf;
+ yajl_EndObj();
+ yajl_WriteStdOut(200 :YajlError);
+ yajl_GenClose();
 
 END-PROC;
