@@ -41,7 +41,7 @@ END-DS;
 //#########################################################################
 DCL-PROC Main;
 
- DCL-DS InputParmDS LIKEDS(ParmInputDS_T) INZ;
+ DCL-DS InputParmDS LIKEDS(InputParmDS_T) INZ;
  DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
 
  DCL-S Index INT(10) INZ;
@@ -56,7 +56,7 @@ DCL-PROC Main;
 
  InputParmDS = getHTTPInput();
 
- If ( InputParmDS.Methode = 'GET' );
+ If ( InputParmDS.Method = 'GET' );
    // submit customer-data to requester
    Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
 
@@ -65,15 +65,15 @@ DCL-PROC Main;
    yajl_WriteStdOut(200 :YajlError);
    yajl_GenClose();
 
- ElseIf ( InputParmDS.Methode = 'POST' );
+ ElseIf ( InputParmDS.Method = 'POST' );
    // add new customer
-   parseIncomingJSONStream(InputParmDS :InputParmDS.Methode);
+   parseIncomingJSONStream(InputParmDS :InputParmDS.Method);
 
- ElseIf ( InputParmDS.Methode = 'PUT' );
+ ElseIf ( InputParmDS.Method = 'PUT' );
    // change selected customer
-   parseIncomingJSONStream(InputParmDS :InputParmDS.Methode);
+   parseIncomingJSONStream(InputParmDS :InputParmDS.Method);
 
- ElseIf ( InputParmDS.Methode = 'DELETE' );
+ ElseIf ( InputParmDS.Method = 'DELETE' );
    // delete selected customer
    Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
    If ( Index > 0 );
@@ -93,7 +93,7 @@ END-PROC;
 DCL-PROC generateJSONCustomerStream;
  DCL-PI *N;
   pIndex INT(10) CONST;
-  pInputParmDS LIKEDS(ParmInputDS_T) CONST;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
 
  DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
@@ -161,8 +161,8 @@ END-PROC;
 //#########################################################################
 DCL-PROC parseIncomingJSONStream;
  DCL-PI *N;
-  pInputParmDS LIKEDS(ParmInputDS_T) CONST;
-  pMethode CHAR(10) CONST;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
+  pMethod CHAR(10) CONST;
  END-PI;
 
  DCL-DS CustomerDS LIKEDS(CustomerDS_T) INZ;
@@ -205,9 +205,9 @@ DCL-PROC parseIncomingJSONStream;
          EndIf;
 
          If ( CustomerDS.Name1 <> '' ) Or ( CustomerDS.Name2 <> '' );
-           If ( pMethode = 'POST' );
+           If ( pMethod = 'POST' );
              insertCustomer(CustomerDS);
-           ElseIf ( pMethode = 'PUT' );
+           ElseIf ( pMethod = 'PUT' );
              updateCustomer(CustomerDS);
            EndIf;
          
@@ -311,7 +311,7 @@ END-PROC;
 DCL-PROC deleteCustomer;
  DCL-PI *N;
   pIndex INT(10) CONST;
-  pInputParmDS LIKEDS(ParmInputDS_T) CONST;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
 
  DCL-S Success IND INZ(TRUE);

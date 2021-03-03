@@ -26,7 +26,7 @@
 /DEFINE CGISRVR1_H
 
 
-DCL-PR getHTTPInput LIKEDS(ParmInputDS_T) END-PR;
+DCL-PR getHTTPInput LIKEDS(InputParmDS_T) END-PR;
 
 DCL-PR writeHTTPOut;
  Data POINTER VALUE;
@@ -55,13 +55,16 @@ DCL-C HTTP_NOT_FOUND 5;
 
 DCL-C UTF8 1208;
 
-DCL-DS ParmInputDS_T QUALIFIED TEMPLATE;
+DCL-DS InputParmDS_T QUALIFIED TEMPLATE;
  Data POINTER;
  DataLength INT(10);
- Methode CHAR(20);
+ Method CHAR(20);
  ContentType CHAR(128);
  AuthType CHAR(128);
  RemoteUser CHAR(128);
+ RemoteIP CHAR(15);
+ RemoteHost CHAR(128);
+ UserAgent CHAR(128);
  SeperatedKeysDS LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);
 END-DS;
 

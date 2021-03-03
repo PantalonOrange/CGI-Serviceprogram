@@ -36,21 +36,18 @@ CTL-OPT BNDDIR('QZHBCGI');
 //#########################################################################
 // get environment variables and handle incomming data
 DCL-PROC getHTTPInput EXPORT;
- DCL-PI *N LIKEDS(ParmInputDS_T) END-PI;
+ DCL-PI *N LIKEDS(InputParmDS_T) END-PI;
 
  /INCLUDE QRPGLECPY,GETENV
  /INCLUDE QRPGLECPY,QTMHRDSTIN
 
  DCL-DS ErrorDS LIKEDS(ErrorDS_T) INZ;
- DCL-DS ParmInputDS LIKEDS(ParmInputDS_T) INZ;
+ DCL-DS InputParmDS LIKEDS(InputParmDS_T) INZ;
 
  DCL-S Receiver POINTER;
- DCL-S InputMethode CHAR(20) INZ;
- DCL-S ParmType UNS(3) INZ;
+ DCL-S ContentType CHAR(20) INZ;
  DCL-S ContentLength INT(10) INZ;
  DCL-S BytesAvailable INT(10) INZ;
- DCL-S ContentType CHAR(20) INZ;
- DCL-S AuthType CHAR(128) INZ;
  DCL-S QueryString CHAR(128) INZ;
  //------------------------------------------------------------------------
 
@@ -58,7 +55,7 @@ DCL-PROC getHTTPInput EXPORT;
 
  Receiver = getEnvironmentVariable('REQUEST_METHOD' :ErrorDS);
  If ( Receiver <> *NULL );
-   InputMethode = %Str(Receiver);
+   InputParmDS.Method = %Str(Receiver);
  EndIf;
 
  Receiver = getEnvironmentVariable('CONTENT_LENGTH' :ErrorDS);
@@ -69,56 +66,75 @@ DCL-PROC getHTTPInput EXPORT;
  Receiver = getEnvironmentVariable('CONTENT_TYPE' :ErrorDS);
  If ( Receiver <> *NULL );
    ContentType = %Str(Receiver);
+   Exec SQL SET :ContentType = LOWER(:ContentType);
+   InputParmDS.ContentType = ContentType;
  EndIf;
-
- Exec SQL SET :ContentType = LOWER(:ContentType);
 
  Monitor;
    QueryString = %Str(getEnvironmentVariable('QUERY_STRING' :ErrorDS));
    On-Error;
      Clear QueryString;
  EndMon;
+ 
+ Receiver = getEnvironmentVariable('AUTH_TYPE' :ErrorDS);
+ If ( Receiver <> *NULL );
+   InputParmDS.AuthType = %Str(Receiver);
+ EndIf;
+
+ Receiver = getEnvironmentVariable('REMOTE_USER' :ErrorDS);
+ If ( Receiver <> *NULL );
+   InputParmDS.RemoteUser = %Str(Receiver);
+ EndIf;
+
+ Receiver = getEnvironmentVariable('REMOTE_ADDR' :ErrorDS);
+ If ( Receiver <> *NULL );
+   InputParmDS.RemoteIP = %Str(Receiver);
+ EndIf;
+
+ Receiver = getEnvironmentVariable('REMOTE_HOST' :ErrorDS);
+ If ( Receiver <> *NULL );
+   InputParmDS.RemoteHost = %Str(Receiver);
+ EndIf;
+
+ Receiver = getEnvironmentVariable('HTTP_USER_AGENT' :ErrorDS);
+ If ( Receiver <> *NULL );
+   InputParmDS.UserAgent = %Str(Receiver);
+ EndIf;
 
  Select;
-   When ( InputMethode = 'GET' );
-     ParmInputDS.Methode = InputMethode;
+   When ( InputParmDS.Method = 'GET' );
      If ( QueryString <> '' );
-       ParmInputDS.SeperatedKeysDS = parseQueryString(QueryString);
+       InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
      EndIf;
 
-   When ( InputMethode = 'POST' ) Or ( InputMethode = 'PUT' );
+   When ( InputParmDS.Method = 'POST' ) Or ( InputParmDS.Method = 'PUT' );
      Select;
-       When ( %Scan('text/json' :ContentType) > 0 ) Or
-            ( %Scan('application/json' :ContentType) > 0 ); // json stream
-         ParmInputDS.Data = %Alloc(ContentLength);
-         readStdIn(ParmInputDS.Data :ContentLength :BytesAvailable :ErrorDS);
-         ParmInputDS.DataLength = BytesAvailable;
-         ParmInputDS.ContentType = ContentType;
-         ParmInputDS.Methode = InputMethode;
+       When ( %Scan('text/json' :InputParmDS.ContentType) > 0 ) Or
+            ( %Scan('application/json' :InputParmDS.ContentType) > 0 ); // json stream
+         InputParmDS.Data = %Alloc(ContentLength);
+         readStdIn(InputParmDS.Data :ContentLength :BytesAvailable :ErrorDS);
+         InputParmDS.DataLength = BytesAvailable;
          If ( QueryString <> '' );
-           ParmInputDS.SeperatedKeysDS = parseQueryString(QueryString);
+           InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
          EndIf;
 
-       When ( %Scan('text/plain' :ContentType) > 0 ); // plain text
-         ParmInputDS.Data = %Alloc(ContentLength);
-         readStdIn(ParmInputDS.Data :ContentLength :BytesAvailable :ErrorDS);
-         ParmInputDS.DataLength = BytesAvailable;
-         ParmInputDS.ContentType = ContentType;
-         ParmInputDS.Methode = InputMethode;
+       When ( %Scan('text/plain' :InputParmDS.ContentType) > 0 ); // plain text
+         InputParmDS.Data = %Alloc(ContentLength);
+         readStdIn(InputParmDS.Data :ContentLength :BytesAvailable :ErrorDS);
+         InputParmDS.DataLength = BytesAvailable;
          If ( QueryString <> '' );
-           ParmInputDS.SeperatedKeysDS = parseQueryString(QueryString);
+           InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
          EndIf;
 
      EndSl;
-   When ( InputMethode = 'DELETE' );
-     ParmInputDS.Methode = InputMethode;
+   When ( InputParmDS.Method = 'DELETE' );
      If ( QueryString <> '' );
-       ParmInputDS.SeperatedKeysDS = parseQueryString(QueryString);
+       InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
      EndIf;
 
  EndSl;
 
- Return ParmInputDS;
+ Return InputParmDS;
 
 END-PROC;
 
