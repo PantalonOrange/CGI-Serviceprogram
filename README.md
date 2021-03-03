@@ -24,3 +24,5 @@ ScriptAliasMatch /targetlib/(.*)  /qsys.lib/targetlib.lib/$1
 ```
 
 5. Start your new http-server
+
+6. Try it out: ```http://yourIP:port/targetlib/cgitstrg.pgm?id=1```
