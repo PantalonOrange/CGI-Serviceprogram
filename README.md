@@ -22,6 +22,18 @@ ScriptAliasMatch /targetlib/(.*)  /qsys.lib/targetlib.lib/$1
   Require valid-user
 </Directory>
 ```
+or without ibmi userprofile:
+Create a validation list on your IBMi with: CRTVLDL TARGETLIB/TEST
+Change the http-conf to the following:
+```
+<Directory /qsys.lib/targetlib.lib>
+  SetEnv QIBM_CGI_LIBRARY_LIST "targetlib;YAJL;QHTTPSVR"
+  AuthType Basic
+  AuthName "Restricted Area"
+  PasswdFile targetlib/test
+  Require valid-user
+```
+Add the allowed users with the hhtp-admin "Advanced" - "Internet-user"
 
 5. Start your new http-server
 
