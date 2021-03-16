@@ -48,8 +48,9 @@ DCL-DS JobInfoDS_T QUALIFIED TEMPLATE;
  AuthorizationDescription VARCHAR(50);
  FunctionType CHAR(3);
  Function CHAR(10);
- RunPriority INT(10);
  TemporaryStorage INT(10);
+ ClientIPAddress VARCHAR(45);
+ JobActiveTime VARCHAR(26);
 END-DS;
 
 
@@ -116,7 +117,7 @@ DCL-PROC generateJSONStream;
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S YajlError VARCHAR(500) INZ;
- DCL-S RowCount INT(10) INZ;
+ DCL-S JobCount INT(10) INZ;
  DCL-S Subsystem CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S JobStatus CHAR(4) INZ;
@@ -152,10 +153,11 @@ DCL-PROC generateJSONStream;
                   IFNULL(user_info.text_description, ''),
                   IFNULL(jobs.function_type, ''),
                   IFNULL(jobs.function, ''),
-                  IFNULL(jobs.run_priority, 0),
-                  IFNULL(jobs.temporary_storage, 0)
+                  IFNULL(jobs.temporary_storage, 0),
+                  IFNULL(jobs.client_ip_address, ''),
+                  timestamp_iso8601(IFNULL(jobs.job_active_time, CURRENT_TIMESTAMP))
 
-             FROM TABLE(qsys2.active_job_info()) AS jobs
+             FROM TABLE(qsys2.active_job_info(detailed_info => 'ALL')) AS jobs
 
              LEFT JOIN qsys2.user_info
                ON (user_info.authorization_name = jobs.authorization_name)
@@ -179,8 +181,8 @@ DCL-PROC generateJSONStream;
             ORDER BY jobs.ordinal_position;
 
  Exec SQL OPEN c_active_jobs_reader;
- 
- Exec SQL GET DIAGNOSTICS :RowCount = DB2_NUMBER_ROWS; 
+
+ Exec SQL GET DIAGNOSTICS :JobCount = DB2_NUMBER_ROWS;
 
  DoW ( 1 = 1 );
    Exec SQL FETCH NEXT FROM c_active_jobs_reader INTO :JobInfoDS;
@@ -197,7 +199,7 @@ DCL-PROC generateJSONStream;
    If FirstRun;
      FirstRun= FALSE;
      yajl_AddBool('success' :'1');
-     yajl_AddNum('rowCount' :%Char(RowCount));
+     yajl_AddNum('jobCount' :%Char(JobCount));
      yajl_BeginArray('activeJobInfo');
      ArrayItem = TRUE;
    EndIf;
@@ -216,8 +218,11 @@ DCL-PROC generateJSONStream;
    If ( JobInfoDS.Function <> '' );
      yajl_AddChar('function' :%TrimR(JobInfoDS.Function));
    EndIf;
-   yajl_AddNum('runPriority' :%Char(JobInfoDS.RunPriority));
    yajl_AddNum('temporaryStorage' :%Char(JobInfoDS.TemporaryStorage));
+   If ( JobInfoDS.ClientIPAddress <> '' );
+     yajl_AddChar('clientIPAddress' :%TrimR(JobInfoDS.ClientIPAddress));
+   EndIf;
+   yajl_AddChar('jobActiveTime' :%TrimR(JobInfoDS.JobActiveTime));
    yajl_EndObj();
 
  EndDo;
