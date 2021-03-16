@@ -80,17 +80,17 @@ DCL-PROC Main;
    IndexFunction = %Lookup('fct' :InputParmDS.SeperatedKeysDS(*).Field);
 
    yajl_GenOpen(TRUE);
-   
+
    // read job-information and generate json-stream
-   generateJSONStream(IndexSubSystem 
-                      :IndexAuthorityName 
-                      :IndexJobStatus 
+   generateJSONStream(IndexSubSystem
+                      :IndexAuthorityName
+                      :IndexJobStatus
                       :IndexFunction
                       :InputParmDS);
-   
+
    // return json stream to http-srv
    yajl_WriteStdOut(200 :YajlError);
-   
+
    yajl_GenClose();
 
  EndIf;
@@ -116,6 +116,7 @@ DCL-PROC generateJSONStream;
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S YajlError VARCHAR(500) INZ;
+ DCL-S RowCount INT(10) INZ;
  DCL-S Subsystem CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S JobStatus CHAR(4) INZ;
@@ -140,7 +141,7 @@ DCL-PROC generateJSONStream;
 
  yajl_BeginObj();
 
- Exec SQL DECLARE c_active_jobs_reader CURSOR FOR
+ Exec SQL DECLARE c_active_jobs_reader INSENSITIVE CURSOR FOR
 
            SELECT jobs.ordinal_position,
                   IFNULL(jobs.subsystem, ''),
@@ -170,7 +171,7 @@ DCL-PROC generateJSONStream;
               AND jobs.job_status = CASE WHEN :JobStatus = ''
                                          THEN jobs.job_status
                                          ELSE RTRIM(UPPER(:JobStatus)) END
-              
+
               AND jobs.function = CASE WHEN :Function = ''
                                        THEN jobs.function
                                        ELSE RTRIM(UPPER(:Function)) END
@@ -178,6 +179,8 @@ DCL-PROC generateJSONStream;
             ORDER BY jobs.ordinal_position;
 
  Exec SQL OPEN c_active_jobs_reader;
+ 
+ Exec SQL GET DIAGNOSTICS :RowCount = DB2_NUMBER_ROWS; 
 
  DoW ( 1 = 1 );
    Exec SQL FETCH NEXT FROM c_active_jobs_reader INTO :JobInfoDS;
@@ -194,6 +197,7 @@ DCL-PROC generateJSONStream;
    If FirstRun;
      FirstRun= FALSE;
      yajl_AddBool('success' :'1');
+     yajl_AddNum('rowCount' :%Char(RowCount));
      yajl_BeginArray('activeJobInfo');
      ArrayItem = TRUE;
    EndIf;
