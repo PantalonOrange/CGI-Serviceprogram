@@ -24,6 +24,7 @@
 // The following parameters are implemented:
 //  - sbs = Subsystem
 //  - usr = Authorization_Name (user)
+//  - job = Jobname (format: 000000/user/job)
 //  - jobsts = Job status (msgw etc)
 //  - fct = current running function (STRSQL etc)
 
@@ -88,12 +89,14 @@ DCL-PROC generateJSONStream;
  DCL-S JobCount INT(10) INZ;
  DCL-S Subsystem CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
+ DCL-S JobName VARCHAR(28) INZ;
  DCL-S JobStatus CHAR(4) INZ;
  DCL-S Function CHAR(10) INZ;
  //------------------------------------------------------------------------
 
  Subsystem = getValueByName('sbs' :pInputParmDS);
  AuthorizationName = getValueByName('usr' :pInputParmDS);
+ JobName = getValueByName('job' :pInputParmDS);
  JobStatus = getValueByName('jobsts' :pInputParmDS);
  Function = getValueByName('fct' :pInputParmDS);
 
@@ -106,11 +109,11 @@ DCL-PROC generateJSONStream;
                   IFNULL(jobs.job_name, ''),
                   IFNULL(jobs.job_type, ''),
                   IFNULL(jobs.job_status, ''),
-                  CASE WHEN jobs.job_status = 'MSGW' 
-                       THEN (SELECT joblog.message_text
-                               FROM TABLE(qsys2.joblog_info(jobs.job_name)) AS joblog
-                              WHERE joblog.message_type = 'SENDER'
-                              ORDER BY joblog.ordinal_position DESC LIMIT 1)
+                  CASE WHEN jobs.job_status = 'MSGW'
+                       THEN IFNULL((SELECT joblog.message_text
+                                      FROM TABLE(qsys2.joblog_info(jobs.job_name)) AS joblog
+                                     WHERE joblog.message_type = 'SENDER'
+                                     ORDER BY joblog.ordinal_position DESC LIMIT 1), '')
                        ELSE '' END,
                   IFNULL(jobs.authorization_name, ''),
                   IFNULL(user_info.text_description, ''),
@@ -132,6 +135,10 @@ DCL-PROC generateJSONStream;
               AND jobs.authorization_name = CASE WHEN :AuthorizationName = ''
                                                  THEN jobs.authorization_name
                                                  ELSE UPPER(:AuthorizationName) END
+              
+              AND jobs.job_name = CASE WHEN :JobName = ''
+                                       THEN jobs.job_name
+                                       ELSE UPPER(:JobName) END
 
               AND jobs.job_status = CASE WHEN :JobStatus = ''
                                          THEN jobs.job_status
