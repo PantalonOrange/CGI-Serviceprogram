@@ -2,6 +2,7 @@
              EXPORT     SYMBOL(GETHTTPINPUT)
              EXPORT     SYMBOL(WRITEHTTPOUT)
              EXPORT     SYMBOL(GETHTTPHEADER)
+             EXPORT     SYMBOL(GETVALUEBYNAME)
              EXPORT     SYMBOL(TRANSLATEDATA)
              ENDPGMEXP
 
@@ -9,5 +10,6 @@
              EXPORT     SYMBOL(GETHTTPINPUT)
              EXPORT     SYMBOL(WRITEHTTPOUT)
              EXPORT     SYMBOL(GETHTTPHEADER)
+             EXPORT     SYMBOL(GETVALUEBYNAME)
              EXPORT     SYMBOL(TRANSLATEDATA)
              ENDPGMEXP

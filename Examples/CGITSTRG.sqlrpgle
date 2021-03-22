@@ -28,14 +28,13 @@ DCL-PR Main EXTPGM('CGITSTRG') END-PR;
 /INCLUDE QRPGLEH,CGISRVR1_H
 /INCLUDE QRPGLESRC,YAJL_H
 /INCLUDE QRPGLECPY,BOOLIC
-/INCLUDE QRPGLECPY,SYSTEM
 
 DCL-DS CustomerDS_T QUALIFIED TEMPLATE;
  ID INT(10);
  Name1 CHAR(30);
  Name2 CHAR(30);
- LastChanged INT(20);
- LastUser VARCHAR(128);
+ LastChanged VARCHAR(26);
+ LastUser VARCHAR(255);
 END-DS;
 
 //#########################################################################
@@ -52,16 +51,12 @@ DCL-PROC Main;
 
  *INLR = TRUE;
 
- //system('DLYJOB DLY(30)');
-
  InputParmDS = getHTTPInput();
 
  If ( InputParmDS.Method = 'GET' );
    // submit customer-data to requester
-   Index = %Lookup('id' :InputParmDS.SeperatedKeysDS(*).Field);
-
    yajl_GenOpen(TRUE);
-   generateJSONCustomerStream(Index :InputParmDS);
+   generateJSONCustomerStream(InputParmDS);
    yajl_WriteStdOut(200 :YajlError);
    yajl_GenClose();
 
@@ -92,7 +87,6 @@ END-PROC;
 //  if id = 0 all customers will be returned
 DCL-PROC generateJSONCustomerStream;
  DCL-PI *N;
-  pIndex INT(10) CONST;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
 
@@ -104,15 +98,17 @@ DCL-PROC generateJSONCustomerStream;
  DCL-S CustomerID INT(10) INZ;
  //------------------------------------------------------------------------
 
- If ( pIndex > 0 );
-   CustomerID = %Int(pInputParmDS.SeperatedKeysDS(pIndex).ExtractedValue);
- EndIf;
+ Monitor;
+   CustomerID = %Int(getValueByName('id' :pInputParmDS));
+   On-Error;
+     Reset CustomerID;
+ EndMon;
 
  yajl_BeginObj();
 
  Exec SQL DECLARE c_customer_reader CURSOR FOR
            SELECT customers.cust_id, customers.name1, customers.name2,
-                  timestamp_unix(customers.change_stamp), customers.last_user
+                  timestamp_iso8601(customers.change_stamp), customers.last_user
              FROM customers
             WHERE customers.cust_id = CASE WHEN :CustomerID = 0 THEN customers.cust_id
                                            ELSE :CustomerID END
@@ -142,7 +138,7 @@ DCL-PROC generateJSONCustomerStream;
    yajl_AddNum('customerID' :%Char(CustomerDS.ID));
    yajl_AddChar('customerName1' :%TrimR(CustomerDS.Name1));
    yajl_AddChar('customerName2' :%TrimR(CustomerDS.Name2));
-   yajl_AddNum('lastChanged' :%Char(CustomerDS.LastChanged));
+   yajl_AddCHar('lastChanged' :%TrimR(CustomerDS.LastChanged));
    yajl_AddChar('lastUser' :%TrimR(CustomerDS.LastUser));
    yajl_EndObj();
 
@@ -206,15 +202,15 @@ DCL-PROC parseIncomingJSONStream;
 
          If ( CustomerDS.Name1 <> '' ) Or ( CustomerDS.Name2 <> '' );
            If ( pMethod = 'POST' );
-             insertCustomer(CustomerDS);
+             insertCustomer(CustomerDS :pInputParmDS.RemoteUser);
            ElseIf ( pMethod = 'PUT' );
-             updateCustomer(CustomerDS);
+             updateCustomer(CustomerDS :pInputParmDS.RemoteUser);
            EndIf;
-         
+
          Else;
            Success = FALSE;
            YajlError = 'No valid data received.';
-           
+
          EndIf;
 
        EndDo;
@@ -245,6 +241,7 @@ END-PROC;
 DCL-PROC insertCustomer;
  DCL-PI *N;
   pCustomerDS LIKEDS(CustomerDS_T) CONST;
+  pLastUser VARCHAR(128) CONST;
  END-PI;
 
  DCL-S Success IND INZ(TRUE);
@@ -254,8 +251,8 @@ DCL-PROC insertCustomer;
 
  Exec SQL SELECT cust_id INTO :NewCustomerID FROM FINAL TABLE
           (
-           INSERT INTO customers (name1, name2)
-           VALUES(RTRIM(:pCustomerDS.Name1), RTRIM(:pCustomerDS.Name2))
+           INSERT INTO customers (name1, name2, last_user)
+           VALUES(RTRIM(:pCustomerDS.Name1), RTRIM(:pCustomerDS.Name2), RTRIM(:pLastUser))
           );
  Success = ( SQLCode = 0 );
 
@@ -266,7 +263,7 @@ DCL-PROC insertCustomer;
    yajl_AddNum('newCustomerID' :%Char(NewCustomerID));
  Else;
    Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
-   yajl_AddChar('errorMessage' :%TrimR(YajlError));
+   yajl_AddChar('errorMessage' :%TrimR(%Char(YajlError)));
  EndIf;
  yajl_EndObj();
  yajl_WriteStdOut(200 :YajlError);
@@ -279,6 +276,7 @@ END-PROC;
 DCL-PROC updateCustomer;
  DCL-PI *N;
   pCustomerDS LIKEDS(CustomerDS_T) CONST;
+  pLastUser VARCHAR(128) CONST;
  END-PI;
 
  DCL-S Success IND INZ(TRUE);
@@ -287,18 +285,19 @@ DCL-PROC updateCustomer;
 
  Exec SQL UPDATE customers
              SET customers.name1 = RTRIM(:pCustomerDS.Name1),
-                 customers.name2 = RTRIM(:pCustomerDS.Name2)
+                 customers.name2 = RTRIM(:pCustomerDS.Name2),
+                 customers.last_user = RTRIM(:pLastUser)
            WHERE customers.cust_id = :pCustomerDS.ID
              AND (RTRIM(customers.name1) <> RTRIM(:pCustomerDS.Name1) OR
                   RTRIM(customers.name2) <> RTRIM(:pCustomerDS.Name2));
  Success = ( SQLCode = 0 );
-                  
+
  yajl_GenOpen(TRUE);
  yajl_BeginObj();
  yajl_AddBool('success' :Success);
  If Not Success;
    Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
-   yajl_AddChar('errorMessage' :%TrimR(YajlError));
+   yajl_AddChar('errorMessage' :%TrimR(%Char(YajlError)));
  EndIf;
  yajl_EndObj();
  yajl_WriteStdOut(200 :YajlError);
@@ -328,7 +327,7 @@ DCL-PROC deleteCustomer;
  yajl_AddBool('success' :Success);
  If Not Success;
    Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
-   yajl_AddChar('errorMessage' :%TrimR(YajlError));
+   yajl_AddChar('errorMessage' :%TrimR(%Char(YajlError)));
  EndIf;
  yajl_EndObj();
  yajl_WriteStdOut(200 :YajlError);

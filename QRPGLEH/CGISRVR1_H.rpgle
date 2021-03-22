@@ -26,18 +26,28 @@
 /DEFINE CGISRVR1_H
 
 
+// Get/Retrieve inputs from http-server
 DCL-PR getHTTPInput LIKEDS(InputParmDS_T) END-PR;
 
+// Write data to http-server
 DCL-PR writeHTTPOut;
  Data POINTER VALUE;
  DataLenth INT(10) CONST;
  Type UNS(3) CONST;
 END-PR;
 
+// Get http-header depending on input type
 DCL-PR getHTTPHeader CHAR(128);
  Type UNS(3) CONST;
 END-PR;
 
+// Get retrieved value by name
+DCL-PR getValueByName CHAR(128);
+ FieldName CHAR(128) CONST;
+ InputParmDS LIKEDS(InputParmDS_T) CONST;
+END-PR;
+
+// Translate data between different codepages
 DCL-PR translateData;
  Data POINTER CONST;
  DataLength INT(10) CONST;
@@ -46,6 +56,7 @@ DCL-PR translateData;
 END-PR;
 
 
+// Constants to get http-header by type
 DCL-C HTTP_JSON_OK 0;
 DCL-C HTTP_OK 1;
 DCL-C HTTP_BAD_REQUEST 2;
@@ -53,8 +64,11 @@ DCL-C HTTP_UNAUTHORIZED 3;
 DCL-C HTTP_FORBIDDEN 4;
 DCL-C HTTP_NOT_FOUND 5;
 
+// Constant fields to translate between codepages
 DCL-C UTF8 1208;
+DCL-C LOCAL_CCSID 0;
 
+// Template DS to hold data from http-server
 DCL-DS InputParmDS_T QUALIFIED TEMPLATE;
  Data POINTER;
  DataLength INT(10);
@@ -68,6 +82,7 @@ DCL-DS InputParmDS_T QUALIFIED TEMPLATE;
  SeperatedKeysDS LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);
 END-DS;
 
+// Seperation workfields
 DCL-C MAX_SEP_KEYS 20;
 DCL-DS SeperatedKeysDS_T QUALIFIED TEMPLATE;
  Field CHAR(128);

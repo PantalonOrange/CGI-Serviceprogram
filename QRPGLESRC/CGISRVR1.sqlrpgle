@@ -22,6 +22,7 @@
 // Create servieprogram with folloing command:
 // CRTSRVPGM SRVPGM(CGISRVR1) MODULE(CGISRVR1) EXPORT(*ALL)
 //  SRCFILE(QSRVSRC) USRPRF(*OWNER) REPLACE(*YES) AUT(*USE) STGMDL(*SNGLVL)
+//  TEXT('Webservice API-Serviceprovider over CGI')
 
 
 /DEFINE CTL_SRVPGM
@@ -75,7 +76,7 @@ DCL-PROC getHTTPInput EXPORT;
    On-Error;
      Clear QueryString;
  EndMon;
- 
+
  Receiver = getEnvironmentVariable('AUTH_TYPE' :ErrorDS);
  If ( Receiver <> *NULL );
    InputParmDS.AuthType = %Str(Receiver);
@@ -140,6 +141,7 @@ END-PROC;
 
 
 //#########################################################################
+// write data to http-server
 DCL-PROC writeHTTPOut EXPORT;
  DCL-PI *N;
   pData POINTER VALUE;
@@ -165,6 +167,7 @@ END-PROC;
 
 
 //#########################################################################
+// get http-header depending on input type
 DCL-PROC getHTTPHeader EXPORT;
  DCL-PI *N CHAR(128);
   pType UNS(3) CONST;
@@ -175,23 +178,23 @@ DCL-PROC getHTTPHeader EXPORT;
 
  Select;
    When ( pType = HTTP_JSON_OK );
-     HTTPHeader = 'status: 200 OK' + CRLF +
-                   'content-type: application/json; charset=utf-8' + CRLF + CRLF;
+     HTTPHeader = 'HTTP/1.1 200 OK' + CRLF +
+                   'Content-Type: application/json; charset=utf-8' + CRLF + CRLF;
    When ( pType = HTTP_OK );
-     HTTPHeader = 'status: 200 OK' + CRLF +
-                   'content-type: text/plain' + CRLF + CRLF;
+     HTTPHeader = 'HTTP/1.1 200 OK' + CRLF +
+                   'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_BAD_REQUEST );
-     HTTPHeader = 'status: 400' + CRLF +
-                   'content-type: text/plain' + CRLF + CRLF;
+     HTTPHeader = 'HTTP/1.1 400' + CRLF +
+                   'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_UNAUTHORIZED );
-     HTTPHeader = 'status: 401' + CRLF +
-                   'content-type: text/plain' + CRLF + CRLF;
+     HTTPHeader = 'HTTP/1.1 401' + CRLF +
+                   'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_FORBIDDEN );
-     HTTPHeader = 'status: 403' + CRLF +
-                   'content-type: text/plain' + CRLF + CRLF;
+     HTTPHeader = 'HTTP/1.1 403' + CRLF +
+                   'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_NOT_FOUND );
-     HTTPHeader = 'status: 404' + CRLF +
-                   'content-type: text/plain' + CRLF + CRLF;
+     HTTPHeader = 'HTTP/1.1 404' + CRLF +
+                   'Content-Type: text/plain' + CRLF + CRLF;
  EndSl;
 
  Return HTTPHeader;
@@ -199,6 +202,28 @@ DCL-PROC getHTTPHeader EXPORT;
 END-PROC;
 
 //#########################################################################
+// get value from http-server by field name
+DCL-PROC getValueByName EXPORT;
+ DCL-PI *N CHAR(128);
+  pFieldName CHAR(128) CONST;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
+ END-PI;
+
+ DCL-S Index INT(5) INZ;
+ DCL-S ExtractedValue CHAR(128) INZ;
+ //------------------------------------------------------------------------
+
+ Index = %Lookup(%TrimR(pFieldName) :pInputParmDS.SeperatedKeysDS(*).Field);
+ If ( Index > 0 );
+   ExtractedValue = pInputParmDS.SeperatedKeysDS(Index).ExtractedValue;
+ EndIf;
+
+ Return ExtractedValue;
+
+END-PROC;
+
+//#########################################################################
+// translate data between different codepages
 DCL-PROC translateData EXPORT;
  DCL-PI *N;
   pData POINTER CONST;
