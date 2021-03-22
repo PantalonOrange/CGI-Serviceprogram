@@ -106,6 +106,12 @@ DCL-PROC generateJSONStream;
                   IFNULL(jobs.job_name, ''),
                   IFNULL(jobs.job_type, ''),
                   IFNULL(jobs.job_status, ''),
+                  CASE WHEN jobs.job_status = 'MSGW' 
+                       THEN (SELECT joblog.message_text
+                               FROM TABLE(qsys2.joblog_info(jobs.job_name)) AS joblog
+                              WHERE joblog.message_type = 'SENDER'
+                              ORDER BY joblog.ordinal_position DESC LIMIT 1)
+                       ELSE '' END,
                   IFNULL(jobs.authorization_name, ''),
                   IFNULL(user_info.text_description, ''),
                   IFNULL(jobs.function_type, ''),
@@ -146,7 +152,7 @@ DCL-PROC generateJSONStream;
    If ( SQLCode <> 0 );
      If FirstRun;
        Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
-       yajl_AddBool('success' :'0');
+       yajl_AddBool('success' :FALSE);
        yajl_AddChar('errorMessage' :%TrimR(YajlError));
      EndIf;
      Exec SQL CLOSE c_active_jobs_reader;
@@ -155,7 +161,7 @@ DCL-PROC generateJSONStream;
 
    If FirstRun;
      FirstRun= FALSE;
-     yajl_AddBool('success' :'1');
+     yajl_AddBool('success' :TRUE);
      yajl_AddNum('jobCount' :%Char(JobCount));
      yajl_BeginArray('activeJobInfo');
      ArrayItem = TRUE;
@@ -167,6 +173,9 @@ DCL-PROC generateJSONStream;
    yajl_AddChar('jobName' :%TrimR(JobInfoDS.JobName));
    yajl_AddChar('jobType' :%TrimR(JobInfoDS.JobType));
    yajl_AddChar('jobStatus' :%TrimR(JobInfoDS.JobStatus));
+   If ( JobInfoDS.JobMessage <> '' );
+     yajl_AddChar('jobMessage' :%TrimR(JobInfoDS.JobMessage));
+   EndIf;
    yajl_AddChar('authorizationName' :%TrimR(JobInfoDS.AuthorizationName));
    yajl_AddChar('authorizationDescription' :%TrimR(JobInfoDS.AuthorizationDescription));
    If ( JobInfoDS.FunctionType <> '' );
