@@ -42,7 +42,7 @@ DCL-PROC Main;
  DCL-S IndexAuthorityName INT(5) INZ;
  DCL-S IndexJobStatus INT(5) INZ;
  DCL-S IndexFunction INT(5) INZ;
- DCL-S YajlError VARCHAR(500) INZ;
+ DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  /INCLUDE QRPGLECPY,SQLOPTIONS
@@ -59,13 +59,13 @@ DCL-PROC Main;
    generateJSONStream(InputParmDS);
 
    // return json stream to http-srv
-   yajl_WriteStdOut(200 :YajlError);
+   yajl_WriteStdOut(200 :ErrorMessage);
 
    yajl_GenClose();
 
  Else;
-   YajlError = %TrimR(InputParmDS.Method) + ' not allowed';
-   writeHTTPOut(%Addr(YajlError) :%Len(%TrimR(YajlError)) :HTTP_BAD_REQUEST);
+   ErrorMessage = %TrimR(InputParmDS.Method) + ' not allowed';
+   writeHTTPOut(%Addr(ErrorMessage) :%Len(%Trim(ErrorMessage)) :HTTP_BAD_REQUEST);
 
  EndIf;
 
@@ -85,7 +85,7 @@ DCL-PROC generateJSONStream;
 
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
- DCL-S YajlError VARCHAR(500) INZ;
+ DCL-S ErrorMessage VARCHAR(500) INZ;
  DCL-S JobCount INT(10) INZ;
  DCL-S Subsystem CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
@@ -135,7 +135,7 @@ DCL-PROC generateJSONStream;
               AND jobs.authorization_name = CASE WHEN :AuthorizationName = ''
                                                  THEN jobs.authorization_name
                                                  ELSE UPPER(:AuthorizationName) END
-              
+
               AND jobs.job_name = CASE WHEN :JobName = ''
                                        THEN jobs.job_name
                                        ELSE UPPER(:JobName) END
@@ -158,9 +158,9 @@ DCL-PROC generateJSONStream;
    Exec SQL FETCH NEXT FROM c_active_jobs_reader INTO :JobInfoDS;
    If ( SQLCode <> 0 );
      If FirstRun;
-       Exec SQL GET DIAGNOSTICS CONDITION 1 :YajlError = MESSAGE_TEXT;
+       Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
        yajl_AddBool('success' :FALSE);
-       yajl_AddChar('errorMessage' :%TrimR(YajlError));
+       yajl_AddChar('errorMessage' :%Trim(ErrorMessage));
      EndIf;
      Exec SQL CLOSE c_active_jobs_reader;
      Leave;

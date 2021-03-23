@@ -146,7 +146,7 @@ DCL-PROC writeHTTPOut EXPORT;
  DCL-PI *N;
   pData POINTER VALUE;
   pDataLength INT(10) CONST;
-  pType UNS(3) CONST;
+  pType UNS(3) CONST OPTIONS(*NOPASS);
  END-PI;
 
  /INCLUDE QRPGLECPY,QTMHWRSTOU
@@ -156,8 +156,10 @@ DCL-PROC writeHTTPOut EXPORT;
  DCL-S HTTPHeader CHAR(128) INZ;
  //------------------------------------------------------------------------
 
- HTTPHeader = getHTTPHeader(pType);
- writeStdOut(%Addr(HTTPHeader) :%Len(%TrimR(HTTPHeader)) :ErrorDS);
+ If ( %Parms() = 3 );
+   HTTPHeader = getHTTPHeader(pType);
+   writeStdOut(%Addr(HTTPHeader) :%Len(%TrimR(HTTPHeader)) :ErrorDS);
+ EndIf;
 
  If ( pData <> *NULL );
    writeStdOut(pData :pDataLength :ErrorDS);
@@ -178,22 +180,22 @@ DCL-PROC getHTTPHeader EXPORT;
 
  Select;
    When ( pType = HTTP_JSON_OK );
-     HTTPHeader = 'HTTP/1.1 200 OK' + CRLF +
+     HTTPHeader = 'Status: 200 OK' + CRLF +
                    'Content-Type: application/json; charset=utf-8' + CRLF + CRLF;
    When ( pType = HTTP_OK );
-     HTTPHeader = 'HTTP/1.1 200 OK' + CRLF +
+     HTTPHeader = 'Status: 200 OK' + CRLF +
                    'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_BAD_REQUEST );
-     HTTPHeader = 'HTTP/1.1 400' + CRLF +
+     HTTPHeader = 'Status: 400' + CRLF +
                    'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_UNAUTHORIZED );
-     HTTPHeader = 'HTTP/1.1 401' + CRLF +
+     HTTPHeader = 'Status: 401' + CRLF +
                    'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_FORBIDDEN );
-     HTTPHeader = 'HTTP/1.1 403' + CRLF +
+     HTTPHeader = 'Status: 403' + CRLF +
                    'Content-Type: text/plain' + CRLF + CRLF;
    When ( pType = HTTP_NOT_FOUND );
-     HTTPHeader = 'HTTP/1.1 404' + CRLF +
+     HTTPHeader = 'Status: 404' + CRLF +
                    'Content-Type: text/plain' + CRLF + CRLF;
  EndSl;
 

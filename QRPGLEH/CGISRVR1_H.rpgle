@@ -33,7 +33,7 @@ DCL-PR getHTTPInput LIKEDS(InputParmDS_T) END-PR;
 DCL-PR writeHTTPOut;
  Data POINTER VALUE;
  DataLenth INT(10) CONST;
- Type UNS(3) CONST;
+ Type UNS(3) CONST OPTIONS(*NOPASS);
 END-PR;
 
 // Get http-header depending on input type
