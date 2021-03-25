@@ -36,6 +36,7 @@ DCL-PR Main EXTPGM('GETUSRINF') END-PR;
 /INCLUDE QRPGLECPY,BOOLIC
 
 DCL-DS UserInfoDS_T QUALIFIED TEMPLATE;
+ OrdinalPosition INT(10);
  AuthorizationName VARCHAR(10);
  AuthorizationDescription VARCHAR(50);
  PreviousSignon VARCHAR(26);
@@ -61,7 +62,7 @@ DCL-DS UserInfoDS_T QUALIFIED TEMPLATE;
  LimitDeviceSessions VARCHAR(10);
  MaximumStorageAllowed INT(20);
  StorageUsed INT(20);
- LastUsedTimestamp VARCHAR(28);
+ LastUsedTimestamp VARCHAR(10);
  CreationTimestamp VARCHAR(28);
  CurrentJobsRunning INT(10);
 END-DS;

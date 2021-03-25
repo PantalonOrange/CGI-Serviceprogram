@@ -26,6 +26,8 @@
 //  - sts = Status (enabled/disabled/all)
 //  - act = Only active/inactive users (1=active, 0=inactive)
 
+//  - withjobinfo = Add additional jobinformations (1/0)
+
 
 /INCLUDE QRPGLEH,GETUSRINFH
 
@@ -82,12 +84,14 @@ DCL-PROC generateJSONStream;
  DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S Status CHAR(10) INZ;
  DCL-S Active CHAR(1) INZ;
+ DCL-S WithJobInfo IND INZ(FALSE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  AuthorizationName = getValueByName('usr' :pInputParmDS);
  Status = getValueByName('sts' :pInputParmDS);
  Active = getValueByName('act' :pInputParmDS);
+ WithJobInfo = (getValueByName('withjobinfo' :pInputParmDS) = '1');
 
  yajl_BeginObj();
 
@@ -100,7 +104,8 @@ DCL-PROC generateJSONStream;
               FROM TABLE(qsys2.active_job_info()) AS jobs
              GROUP BY jobs.authorization_name)
 
-           SELECT user_info.authorization_name,
+           SELECT ROW_NUMBER() OVER() rownumber,
+                  user_info.authorization_name,
                   IFNULL(user_info.text_description, ''),
                   IFNULL(timestamp_iso8601(user_info.previous_signon), ''),
                   user_info.sign_on_attempts_not_valid,
@@ -125,7 +130,7 @@ DCL-PROC generateJSONStream;
                   user_info.limit_device_sessions,
                   user_info.maximum_allowed_storage,
                   user_info.storage_used,
-                  IFNULL(timestamp_iso8601(user_info.last_used_timestamp), ''),
+                  IFNULL(CHAR(DATE(user_info.last_used_timestamp)), ''),
                   IFNULL(timestamp_iso8601(user_info.creation_timestamp), ''),
                   IFNULL(current_running_jobs.job_count, 0)
 
@@ -137,11 +142,12 @@ DCL-PROC generateJSONStream;
             WHERE user_info.authorization_name = CASE WHEN :AuthorizationName = ''
                                                  THEN user_info.authorization_name
                                                  ELSE UPPER(:AuthorizationName) END
-              
-              AND REPLACE(user_info.status, '*', '') = CASE WHEN UPPER(:Status) IN ('','ALL')
-                                                            THEN user_info.status
-                                                            ELSE UPPER(:Status) END
-              
+
+              AND REPLACE(user_info.status, '*', '') 
+                = CASE WHEN UPPER(:Status) IN ('','ALL')
+                       THEN REPLACE(user_info.status, '*', '')
+                       ELSE UPPER(:Status) END
+
               AND 1 = CASE WHEN :Active = '' THEN 1
                            WHEN :Active = '1' AND current_running_jobs.job_count IS NOT NULL THEN 1
                            WHEN :Active = '0' AND current_running_jobs.job_count IS NULL THEN 1
@@ -175,6 +181,7 @@ DCL-PROC generateJSONStream;
 
    yajl_BeginObj();
 
+   yajl_AddNum('ordinalPosition' :%Char(UserInfoDS.OrdinalPosition));
    yajl_AddChar('authorizationName' :%TrimR(UserInfoDS.AuthorizationName));
    yajl_AddChar('authorizationDescription' :%TrimR(UserInfoDS.AuthorizationDescription));
    yajl_AddBool('isEnabled' :(UserInfoDS.Status = '*ENABLED'));
@@ -243,7 +250,7 @@ DCL-PROC generateJSONStream;
    yajl_AddChar('creationTimestamp' :%TrimR(UserInfoDS.CreationTimestamp));
    yajl_AddNum('currentJobsRunning' :%Char(UserInfoDS.CurrentJobsRunning));
 
-   If ( UserInfoDS.CurrentJobsRunning > 0 );
+   If WithJobInfo And ( UserInfoDS.CurrentJobsRunning > 0 );
      getJobInfos(UserInfoDS.AuthorizationName);
    EndIf;
 
