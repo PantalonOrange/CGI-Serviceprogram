@@ -23,6 +23,8 @@
 // This cgi-exitprogram will retourn the selected job-informations
 // The following parameters are implemented:
 //  - usr = Authorization_Name (user)
+//  - sts = Status (enabled/disabled/all)
+//  - act = Only active/inactive users (1=active, 0=inactive)
 
 
 /INCLUDE QRPGLEH,GETUSRINFH
@@ -76,20 +78,25 @@ DCL-PROC generateJSONStream;
 
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
+ DCL-S UserCount INT(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
+ DCL-S Status CHAR(10) INZ;
+ DCL-S Active CHAR(1) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  AuthorizationName = getValueByName('usr' :pInputParmDS);
+ Status = getValueByName('sts' :pInputParmDS);
+ Active = getValueByName('act' :pInputParmDS);
 
  yajl_BeginObj();
 
  Exec SQL DECLARE c_user_info_reader INSENSITIVE CURSOR FOR
- 
-           WITH current_running_jobs 
+
+           WITH current_running_jobs
              (authorization_name, job_count) AS
 
-           (SELECT jobs.authorization_name, COUNT(*) 
+           (SELECT jobs.authorization_name, COUNT(*)
               FROM TABLE(qsys2.active_job_info()) AS jobs
              GROUP BY jobs.authorization_name)
 
@@ -123,17 +130,28 @@ DCL-PROC generateJSONStream;
                   IFNULL(current_running_jobs.job_count, 0)
 
              FROM qsys2.user_info
-             
-             LEFT JOIN current_running_jobs 
+
+             LEFT JOIN current_running_jobs
                ON current_running_jobs.authorization_name = user_info.authorization_name
 
             WHERE user_info.authorization_name = CASE WHEN :AuthorizationName = ''
                                                  THEN user_info.authorization_name
                                                  ELSE UPPER(:AuthorizationName) END
+              
+              AND REPLACE(user_info.status, '*', '') = CASE WHEN UPPER(:Status) IN ('','ALL')
+                                                            THEN user_info.status
+                                                            ELSE UPPER(:Status) END
+              
+              AND 1 = CASE WHEN :Active = '' THEN 1
+                           WHEN :Active = '1' AND current_running_jobs.job_count IS NOT NULL THEN 1
+                           WHEN :Active = '0' AND current_running_jobs.job_count IS NULL THEN 1
+                           ELSE 0 END
 
             ORDER BY user_info.authorization_name;
 
  Exec SQL OPEN c_user_info_reader;
+
+ Exec SQL GET DIAGNOSTICS :UserCount = DB2_NUMBER_ROWS;
 
  DoW ( 1 = 1 );
    Exec SQL FETCH NEXT FROM c_user_info_reader INTO :UserInfoDS;
@@ -150,6 +168,7 @@ DCL-PROC generateJSONStream;
    If FirstRun;
      FirstRun= FALSE;
      yajl_AddBool('success' :TRUE);
+     yajl_AddNum('userCount' :%Char(UserCount));
      yajl_BeginArray('userInfo');
      ArrayItem = TRUE;
    EndIf;
@@ -158,42 +177,41 @@ DCL-PROC generateJSONStream;
 
    yajl_AddChar('authorizationName' :%TrimR(UserInfoDS.AuthorizationName));
    yajl_AddChar('authorizationDescription' :%TrimR(UserInfoDS.AuthorizationDescription));
-   
+   yajl_AddBool('isEnabled' :(UserInfoDS.Status = '*ENABLED'));
+
    If ( UserInfoDS.PreviousSignon <> '' );
      yajl_AddChar('previousSignon' :%TrimR(UserInfoDS.PreviousSignon));
    EndIf;
-   
+
    If ( UserInfoDS.SignOnAttemptsNotValid > 0 );
      yajl_AddChar('signOnAttemptsNotValid' :%Char(UserInfoDS.SignOnAttemptsNotValid));
    EndIf;
-   
-   yajl_AddBool('isEnabled' :(UserInfoDS.Status = '*ENABLED'));
-   
+
    If ( UserInfoDS.PasswordChangeDate <> '' );
      yajl_AddChar('passwordChangeDate' :%TrimR(UserInfoDS.PasswordChangeDate));
    EndIf;
-   
+
    yajl_AddBool('noPasswordIndicator' :(UserInfoDS.NoPassWordIndicator = 'YES'));
    yajl_AddNum('passwordExpirationInterval' :%Char(UserInfoDS.PasswordExpirationInterval));
-   
+
    If ( UserInfoDS.DatePasswordExpires <> '' );
      yajl_AddChar('datePasswordExpires' :%TrimR(UserInfoDS.DatePasswordExpires));
    EndIf;
-   
+
    If ( UserInfoDS.DaysUntilPasswordExpires > 0 );
      yajl_AddNum('daysUntilPasswordExpires' :%Char(UserInfoDS.DaysUntilPasswordExpires));
    EndIf;
-   
+
    yajl_AddBool('setPasswordToExpire' :(UserInfoDS.SetPasswordToExpire = 'YES'));
    yajl_AddChar('userClassName' :%TrimR(UserInfoDS.UserClassName));
-   
+
    If ( UserInfoDS.GroupProfileName <> '' );
      yajl_AddChar('groupProfileName' :%TrimR(UserInfoDS.GroupProfileName));
    EndIf;
-   
+
    yajl_AddChar('owner' :%TrimR(UserInfoDS.Owner));
    yajl_AddChar('currentLibraryName' :%TrimR(UserInfoDS.CurrentLibraryName));
-   
+
    If (UserInfoDS.InitialMenuName <> '' );
      yajl_BeginArray('initialMenu');
       yajl_BeginObj();
@@ -202,7 +220,7 @@ DCL-PROC generateJSONStream;
       Yajl_EndObj();
      yajl_EndArray();
    EndIf;
-   
+
    If (UserInfoDS.InitialProgramName <> '' );
      yajl_BeginArray('initialProgram');
       yajl_BeginObj();
@@ -211,24 +229,24 @@ DCL-PROC generateJSONStream;
       Yajl_EndObj();
      yajl_EndArray();
    EndIf;
-   
+
    yajl_AddChar('limitCapabilities' :%TrimR(UserInfoDS.LimitCapabilities));
    yajl_AddChar('displaySignonInformations' :%TrimR(UserInfoDS.DisplaySignonInformations));
    yajl_AddChar('limitDeviceSessions' :%TrimR(UserInfoDS.LimitDeviceSessions));
    yajl_AddNum('maximumStorageAllowed' :%Char(UserInfoDS.MaximumStorageAllowed));
    yajl_AddNum('storageUsed' :%Char(UserInfoDS.StorageUsed));
-   
+
    If ( UserInfoDS.LastUsedTimestamp <> '' );
      yajl_AddChar('lastUsedTimestamp' :%TrimR(UserInfoDS.LastUsedTimestamp));
    EndIf;
-   
+
    yajl_AddChar('creationTimestamp' :%TrimR(UserInfoDS.CreationTimestamp));
    yajl_AddNum('currentJobsRunning' :%Char(UserInfoDS.CurrentJobsRunning));
-   
+
    If ( UserInfoDS.CurrentJobsRunning > 0 );
      getJobInfos(UserInfoDS.AuthorizationName);
    EndIf;
-   
+
    yajl_EndObj();
 
  EndDo;
@@ -289,7 +307,7 @@ DCL-PROC getJobInfos;
    EndIf;
 
    yajl_BeginObj();
-   
+
    yajl_AddNum('ordinalPosition' :%Char(JobInfoDS.OrdinalPosition));
    yajl_AddChar('subSystem' :%TrimR(JobInfoDS.Subsystem));
    yajl_AddChar('jobName' :%TrimR(JobInfoDS.JobName));
