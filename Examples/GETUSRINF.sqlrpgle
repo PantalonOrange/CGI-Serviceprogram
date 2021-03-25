@@ -24,7 +24,9 @@
 // The following parameters are implemented:
 //  - usr = Authorization_Name (user)
 //  - sts = Status (enabled/disabled/all)
-//  - act = Only active/inactive users (1=active, 0=inactive)
+//  - grpprf = Group profile
+//  - owner = Owner
+//  - active = Only active/inactive users (1=active, 0=inactive)
 
 //  - withjobinfo = Add additional jobinformations (1/0)
 
@@ -83,6 +85,8 @@ DCL-PROC generateJSONStream;
  DCL-S UserCount INT(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S Status CHAR(10) INZ;
+ DCL-S GroupProfile CHAR(10) INZ;
+ DCL-S Owner CHAR(10) INZ;
  DCL-S Active CHAR(1) INZ;
  DCL-S WithJobInfo IND INZ(FALSE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
@@ -90,7 +94,9 @@ DCL-PROC generateJSONStream;
 
  AuthorizationName = getValueByName('usr' :pInputParmDS);
  Status = getValueByName('sts' :pInputParmDS);
- Active = getValueByName('act' :pInputParmDS);
+ GroupProfile = getValueByName('grpprf' :pInputParmDS);
+ Owner = getValueByName('owner' :pInputParmDS);
+ Active = getValueByName('active' :pInputParmDS);
  WithJobInfo = (getValueByName('withjobinfo' :pInputParmDS) = '1');
 
  yajl_BeginObj();
@@ -143,10 +149,18 @@ DCL-PROC generateJSONStream;
                                                  THEN user_info.authorization_name
                                                  ELSE UPPER(:AuthorizationName) END
 
-              AND REPLACE(user_info.status, '*', '') 
+              AND REPLACE(user_info.status, '*', '')
                 = CASE WHEN UPPER(:Status) IN ('','ALL')
                        THEN REPLACE(user_info.status, '*', '')
                        ELSE UPPER(:Status) END
+                       
+              AND user_info.group_profile_name = CASE WHEN :GroupProfile = ''
+                                                      THEN user_info.group_profile_name
+                                                      ELSE UPPER(:GroupProfile) END
+                                                      
+              AND user_info.owner = CASE WHEN :Owner = ''
+                                         THEN user_info.owner
+                                         ELSE UPPER(:Owner) END
 
               AND 1 = CASE WHEN :Active = '' THEN 1
                            WHEN :Active = '1' AND current_running_jobs.job_count IS NOT NULL THEN 1
@@ -296,9 +310,10 @@ DCL-PROC getJobInfos;
                   IFNULL(jobs.function_type, ''),
                   IFNULL(jobs.function, ''),
                   IFNULL(jobs.temporary_storage, 0),
+                  IFNULL(jobs.client_ip_address, ''),
                   timestamp_iso8601(IFNULL(jobs.job_active_time, CURRENT_TIMESTAMP))
 
-             FROM TABLE(qsys2.active_job_info()) AS jobs
+             FROM TABLE(qsys2.active_job_info(detailed_info => 'ALL')) AS jobs
 
             WHERE jobs.authorization_name = :pAuthorizationName
 
@@ -320,16 +335,25 @@ DCL-PROC getJobInfos;
    yajl_AddChar('jobName' :%TrimR(JobInfoDS.JobName));
    yajl_AddChar('jobType' :%TrimR(JobInfoDS.JobType));
    yajl_AddChar('jobStatus' :%TrimR(JobInfoDS.JobStatus));
+
    If ( JobInfoDS.JobMessage <> '' );
      yajl_AddChar('jobMessage' :%TrimR(JobInfoDS.JobMessage));
    EndIf;
+
    If ( JobInfoDS.FunctionType <> '' );
      yajl_AddChar('functionType' :%TrimR(JobInfoDS.FunctionType));
    EndIf;
+
    If ( JobInfoDS.Function <> '' );
      yajl_AddChar('function' :%TrimR(JobInfoDS.Function));
    EndIf;
+
    yajl_AddNum('temporaryStorage' :%Char(JobInfoDS.TemporaryStorage));
+
+   If ( JobInfoDS.ClientIPAddress <> '' );
+     yajl_AddChar('clientIPAddress' :%TrimR(JobInfoDS.ClientIPAddress));
+   EndIf;
+
    yajl_AddChar('jobActiveTime' :%TrimR(JobInfoDS.JobActiveTime));
 
    yajl_EndObj();
