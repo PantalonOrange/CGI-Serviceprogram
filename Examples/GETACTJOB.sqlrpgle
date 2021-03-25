@@ -36,12 +36,7 @@
 DCL-PROC Main;
 
  DCL-DS InputParmDS LIKEDS(InputParmDS_T) INZ;
- DCL-DS JobInfoDS LIKEDS(JobInfoDS_T) INZ;
 
- DCL-S IndexSubSystem INT(5) INZ;
- DCL-S IndexAuthorityName INT(5) INZ;
- DCL-S IndexJobStatus INT(5) INZ;
- DCL-S IndexFunction INT(5) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
@@ -65,7 +60,7 @@ DCL-PROC Main;
 
  Else;
    ErrorMessage = %TrimR(InputParmDS.Method) + ' not allowed';
-   writeHTTPOut(%Addr(ErrorMessage) :%Len(%Trim(ErrorMessage)) :HTTP_BAD_REQUEST);
+   writeHTTPOut(%Addr(ErrorMessage) :%Len(%Trim(ErrorMessage)) + 2 :HTTP_BAD_REQUEST);
 
  EndIf;
 
