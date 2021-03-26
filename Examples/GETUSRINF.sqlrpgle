@@ -27,8 +27,9 @@
 //  - grpprf = Group profile
 //  - owner = Owner
 //  - active = Only active/inactive users (1=active, 0=inactive)
+//  - pwdexp = 1=Only users with expired password, 0=Only users with valid password
 
-//  - withjobinfo = Add additional jobinformations (1/0)
+//  - jobinfo = Add additional jobinformations (1/0)
 
 
 /INCLUDE QRPGLEH,GETUSRINFH
@@ -88,16 +89,19 @@ DCL-PROC generateJSONStream;
  DCL-S GroupProfile CHAR(10) INZ;
  DCL-S Owner CHAR(10) INZ;
  DCL-S Active CHAR(1) INZ;
- DCL-S WithJobInfo IND INZ(FALSE);
+ DCL-S ExpiredPassword CHAR(1) INZ;
+ DCL-S JobInfo IND INZ(FALSE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
+ // retrieve parameters by name
  AuthorizationName = getValueByName('usr' :pInputParmDS);
  Status = getValueByName('sts' :pInputParmDS);
  GroupProfile = getValueByName('grpprf' :pInputParmDS);
  Owner = getValueByName('owner' :pInputParmDS);
  Active = getValueByName('active' :pInputParmDS);
- WithJobInfo = (getValueByName('withjobinfo' :pInputParmDS) = '1');
+ ExpiredPassword = getValueByName('exppwd' :pInputParmDS);
+ JobInfo = (getValueByName('jobinfo' :pInputParmDS) = '1');
 
  yajl_BeginObj();
 
@@ -119,7 +123,7 @@ DCL-PROC generateJSONStream;
                   IFNULL(timestamp_iso8601(user_info.password_change_date), ''),
                   user_info.no_password_indicator,
                   user_info.password_expiration_interval,
-                  IFNULL(timestamp_iso8601(user_info.date_password_expires), ''),
+                  IFNULL(CHAR(user_info.date_password_expires), ''),
                   IFNULL(user_info.days_until_password_expires, 0),
                   user_info.set_password_to_expire,
                   user_info.user_class_name,
@@ -153,11 +157,11 @@ DCL-PROC generateJSONStream;
                 = CASE WHEN UPPER(:Status) IN ('','ALL')
                        THEN REPLACE(user_info.status, '*', '')
                        ELSE UPPER(:Status) END
-                       
+
               AND user_info.group_profile_name = CASE WHEN :GroupProfile = ''
                                                       THEN user_info.group_profile_name
                                                       ELSE UPPER(:GroupProfile) END
-                                                      
+
               AND user_info.owner = CASE WHEN :Owner = ''
                                          THEN user_info.owner
                                          ELSE UPPER(:Owner) END
@@ -165,6 +169,15 @@ DCL-PROC generateJSONStream;
               AND 1 = CASE WHEN :Active = '' THEN 1
                            WHEN :Active = '1' AND current_running_jobs.job_count IS NOT NULL THEN 1
                            WHEN :Active = '0' AND current_running_jobs.job_count IS NULL THEN 1
+                           ELSE 0 END
+                           
+              AND 1 = CASE WHEN :ExpiredPassword = '' THEN 1
+                           WHEN :ExpiredPassword = '1'
+                            AND (DATE(user_info.date_password_expires) <= CURRENT_DATE 
+                                  OR user_info.set_password_to_expire = 'YES') THEN 1
+                           WHEN :ExpiredPassword = '0'
+                            AND DATE(user_info.date_password_expires) > CURRENT_DATE
+                            AND user_info.set_password_to_expire = 'NO' THEN 1
                            ELSE 0 END
 
             ORDER BY user_info.authorization_name;
@@ -177,6 +190,7 @@ DCL-PROC generateJSONStream;
    Exec SQL FETCH NEXT FROM c_user_info_reader INTO :UserInfoDS;
    If ( SQLCode <> 0 );
      If FirstRun;
+       // EOF or other errors
        Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
        yajl_AddBool('success' :FALSE);
        yajl_AddChar('errorMessage' :%Trim(ErrorMessage));
@@ -264,7 +278,8 @@ DCL-PROC generateJSONStream;
    yajl_AddChar('creationTimestamp' :%TrimR(UserInfoDS.CreationTimestamp));
    yajl_AddNum('currentJobsRunning' :%Char(UserInfoDS.CurrentJobsRunning));
 
-   If WithJobInfo And ( UserInfoDS.CurrentJobsRunning > 0 );
+   If JobInfo And ( UserInfoDS.CurrentJobsRunning > 0 );
+     // if selected, show all active jobs for current user
      getJobInfos(UserInfoDS.AuthorizationName);
    EndIf;
 
@@ -284,6 +299,7 @@ END-PROC;
 
 //#########################################################################
 // parse all jobs from selected user to json and return it
+//  this is a copy from getactjob
 DCL-PROC getJobInfos;
  DCL-PI *N;
   pAuthorizationName CHAR(10) CONST;
