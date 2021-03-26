@@ -20,7 +20,7 @@
 //- SOFTWARE.
 
 
-// This cgi-exitprogram will retourn the selected job-informations
+// This cgi-exitprogram will return the informations about the selected user
 // The following parameters are implemented:
 //  - usr = Authorization_Name (user)
 //  - sts = Status (enabled/disabled/all)
@@ -53,7 +53,7 @@ DCL-PROC Main;
 
    yajl_GenOpen(TRUE);
 
-   // read job-information and generate json-stream
+   // read user-information and generate json-stream
    generateJSONStream(InputParmDS);
 
    // return json stream to http-srv
@@ -170,10 +170,10 @@ DCL-PROC generateJSONStream;
                            WHEN :Active = '1' AND current_running_jobs.job_count IS NOT NULL THEN 1
                            WHEN :Active = '0' AND current_running_jobs.job_count IS NULL THEN 1
                            ELSE 0 END
-                           
+
               AND 1 = CASE WHEN :ExpiredPassword = '' THEN 1
                            WHEN :ExpiredPassword = '1'
-                            AND (DATE(user_info.date_password_expires) <= CURRENT_DATE 
+                            AND (DATE(user_info.date_password_expires) <= CURRENT_DATE
                                   OR user_info.set_password_to_expire = 'YES') THEN 1
                            WHEN :ExpiredPassword = '0'
                             AND DATE(user_info.date_password_expires) > CURRENT_DATE
