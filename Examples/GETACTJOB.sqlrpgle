@@ -58,6 +58,16 @@ DCL-PROC Main;
 
    yajl_GenClose();
 
+ ElseIf ( InputParmDS.Method = 'DELETE' );
+   yajl_GenOpen(TRUE);
+   
+   // end job immed
+   endSelectedJob(InputParmDS);
+   
+   yajl_WriteStdOut(200 :ErrorMessage);
+   
+   yajl_GenClose();
+
  Else;
    ErrorMessage = %TrimR(InputParmDS.Method) + ' not allowed';
    writeHTTPOut(%Addr(ErrorMessage) :%Len(%Trim(ErrorMessage)) + 2 :HTTP_BAD_REQUEST);
@@ -80,13 +90,13 @@ DCL-PROC generateJSONStream;
 
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
- DCL-S ErrorMessage VARCHAR(500) INZ;
  DCL-S JobCount INT(10) INZ;
  DCL-S Subsystem CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S JobName VARCHAR(28) INZ;
  DCL-S JobStatus CHAR(4) INZ;
  DCL-S Function CHAR(10) INZ;
+ DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  Subsystem = getValueByName('sbs' :pInputParmDS);
@@ -197,6 +207,40 @@ DCL-PROC generateJSONStream;
 
  If ArrayItem;
    yajl_EndArray();
+ EndIf;
+
+ yajl_EndObj();
+
+ Return;
+
+END-PROC;
+
+//#########################################################################
+// end selected job immed
+DCL-PROC endSelectedJob;
+ DCL-PI *N;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
+ END-PI;
+
+ /INCLUDE QRPGLECPY,SYSTEM
+
+ DCL-S RC INT(10) INZ(-1);
+ DCL-S JobName VARCHAR(28) INZ;
+ DCL-S ErrorMessage VARCHAR(500) INZ;
+ //------------------------------------------------------------------------
+
+ JobName = getValueByName('job' :pInputParmDS);
+
+ If ( JobName <> '' );
+   RC = system('ENDJOB JOB(' + %TrimR(JobName) + ') OPTION(*IMMED)');
+ EndIf;
+
+ yajl_BeginObj();
+
+ yajl_AddBool('success' :(RC = 0));
+ 
+ If ( RC <> 0 );
+   yajl_AddChar('errorMessage' :'Job not found or access denied.');
  EndIf;
 
  yajl_EndObj();
