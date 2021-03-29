@@ -215,33 +215,33 @@ DCL-PROC generateJSONStream;
                            ELSE 0 END
 
                -- fetch only with selected current library name
-              AND user_info.current_library_name
+              AND IFNULL(user_info.current_library_name, '')
                 = CASE WHEN :CurrentLibrary = ''
-                       THEN user_info.current_library_name
+                       THEN IFNULL(user_info.current_library_name, '')
                        ELSE UPPER(:CurrentLibrary) END
 
                -- fetch only with selected initial menu
-              AND user_info.initial_menu_name
+              AND IFNULL(user_info.initial_menu_name, '')
                 = CASE WHEN :InitialMenuName = ''
-                       THEN user_info.initial_menu_name
+                       THEN IFNULL(user_info.initial_menu_name, '')
                        ELSE UPPER(:InitialMenuName) END
 
                -- ftech only with selected initial menu library
-              AND user_info.initial_menu_library_name
+              AND IFNULL(user_info.initial_menu_library_name, '')
                 = CASE WHEN :InitialMenuLibrary = ''
-                       THEN user_info.initial_menu_library_name
+                       THEN IFNULL(user_info.initial_menu_library_name, '')
                        ELSE UPPER(:InitialMenuLibrary) END
 
                -- fetch only with selected initial program
-              AND user_info.initial_program_name
+              AND IFNULL(user_info.initial_program_name, '')
                 = CASE WHEN :InitialProgramName = ''
-                       THEN user_info.initial_program_name
+                       THEN IFNULL(user_info.initial_program_name, '')
                        ELSE UPPER(:InitialProgramName) END
 
                -- fetch only with selected initial program library
-              AND user_info.initial_program_library_name
+              AND IFNULL(user_info.initial_program_library_name, '')
                 = CASE WHEN :InitialProgramLibrary = ''
-                       THEN user_info.initial_program_library_name
+                       THEN IFNULL(user_info.initial_program_library_name, '')
                        ELSE UPPER(:InitialProgramLibrary) END
 
             ORDER BY user_info.authorization_name;
