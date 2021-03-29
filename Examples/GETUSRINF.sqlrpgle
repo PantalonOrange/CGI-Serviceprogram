@@ -23,11 +23,17 @@
 // This cgi-exitprogram will return the informations about the selected user
 // The following parameters are implemented:
 //  - usr = Authorization_Name (user)
-//  - sts = Status (enabled/disabled/all)
+//  - usrcls = Userclass (user, secofr, etc)
+//  - enabled = Userprofile status (1=enabled, 0=disabled)
 //  - grpprf = Group profile
 //  - owner = Owner
 //  - active = Only active/inactive users (1=active, 0=inactive)
 //  - pwdexp = 1=Only users with expired password, 0=Only users with valid password
+//  - curlib = Current library name
+//  - inimnunam = Initial menu name
+//  - inimnulib = Initial menu library name
+//  - inipgmnam = Initial program name
+//  - inipgmlib = Initial program library name
 
 //  - jobinfo = Add additional jobinformations (1/0)
 
@@ -85,22 +91,34 @@ DCL-PROC generateJSONStream;
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S UserCount INT(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
- DCL-S Status CHAR(10) INZ;
+ DCL-S UserClass CHAR(10) INZ;
+ DCL-S Enabled CHAR(1) INZ;
  DCL-S GroupProfile CHAR(10) INZ;
  DCL-S Owner CHAR(10) INZ;
  DCL-S Active CHAR(1) INZ;
  DCL-S ExpiredPassword CHAR(1) INZ;
+ DCL-S CurrentLibrary CHAR(10) INZ;
+ DCL-S InitialMenuName CHAR(10) INZ;
+ DCL-S InitialMenuLibrary CHAR(10) INZ;
+ DCL-S InitialProgramName CHAR(10) INZ;
+ DCL-S InitialProgramLibrary CHAR(10) INZ;
  DCL-S JobInfo IND INZ(FALSE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
- // retrieve parameters by name
+ // retrieve parameters/values by name
  AuthorizationName = getValueByName('usr' :pInputParmDS);
- Status = getValueByName('sts' :pInputParmDS);
+ UserClass = getValueByName('usrcls' :pInputParmDS);
+ Enabled = getValueByName('enabled' :pInputParmDS);
  GroupProfile = getValueByName('grpprf' :pInputParmDS);
  Owner = getValueByName('owner' :pInputParmDS);
  Active = getValueByName('active' :pInputParmDS);
  ExpiredPassword = getValueByName('exppwd' :pInputParmDS);
+ CurrentLibrary = getValueByName('curlib' :pInputParmDS);
+ InitialMenuName = getValueByName('inimnunam' :pInputParmDS);
+ InitialMenuLibrary = getValueByName('inimnulib' :pInputParmDS);
+ InitialProgramName = getValueByName('inipgmnam' :pInputParmDS);
+ InitialProgramLibrary = getValueByName('inipgmlib' :pInputParmDS);
  JobInfo = (getValueByName('jobinfo' :pInputParmDS) = '1');
 
  yajl_BeginObj();
@@ -108,6 +126,7 @@ DCL-PROC generateJSONStream;
  Exec SQL DECLARE c_user_info_reader INSENSITIVE CURSOR FOR
 
            WITH current_running_jobs
+             -- get count per user for currently running jobs
              (authorization_name, job_count) AS
 
            (SELECT jobs.authorization_name, COUNT(*)
@@ -149,28 +168,43 @@ DCL-PROC generateJSONStream;
              LEFT JOIN current_running_jobs
                ON current_running_jobs.authorization_name = user_info.authorization_name
 
-            WHERE user_info.authorization_name = CASE WHEN :AuthorizationName = ''
-                                                 THEN user_info.authorization_name
-                                                 ELSE UPPER(:AuthorizationName) END
+               -- fetch only selected userprofile or all
+            WHERE user_info.authorization_name
+                = CASE WHEN :AuthorizationName = ''
+                       THEN user_info.authorization_name
+                       ELSE UPPER(:AuthorizationName) END
 
-              AND REPLACE(user_info.status, '*', '')
-                = CASE WHEN UPPER(:Status) IN ('','ALL')
-                       THEN REPLACE(user_info.status, '*', '')
-                       ELSE UPPER(:Status) END
+               -- fetch only selected user-class profile or all
+              AND REPLACE(user_info.user_class_name, '*', '')
+                = CASE WHEN UPPER(:UserClass) IN ('','ALL')
+                       THEN REPLACE(user_info.user_class_name, '*', '')
+                       ELSE UPPER(:UserClass) END
 
-              AND user_info.group_profile_name = CASE WHEN :GroupProfile = ''
-                                                      THEN user_info.group_profile_name
-                                                      ELSE UPPER(:GroupProfile) END
+               -- fetch selected stati for profiles (enabled/disabled) or all
+              AND 1 = CASE WHEN :Enabled = '' THEN 1
+                           WHEN :Enabled = '1' AND user_info.status = '*ENABLED' THEN 1
+                           WHEN :Enabled = '0' AND user_info.status = '*DISABLED' THEN 1
+                           ELSE 0 END
 
-              AND user_info.owner = CASE WHEN :Owner = ''
-                                         THEN user_info.owner
-                                         ELSE UPPER(:Owner) END
+               -- fetch profiles for selected groups or all
+              AND user_info.group_profile_name
+                = CASE WHEN :GroupProfile = ''
+                       THEN user_info.group_profile_name
+                       ELSE UPPER(:GroupProfile) END
 
+               -- fetch profiles for selected owner-setting or all
+              AND user_info.owner
+                = CASE WHEN :Owner = ''
+                       THEN user_info.owner
+                       ELSE UPPER(:Owner) END
+
+               -- fetch only currently running userprofiles or all
               AND 1 = CASE WHEN :Active = '' THEN 1
                            WHEN :Active = '1' AND current_running_jobs.job_count IS NOT NULL THEN 1
                            WHEN :Active = '0' AND current_running_jobs.job_count IS NULL THEN 1
                            ELSE 0 END
 
+               -- fetch only users with or without expired password or all
               AND 1 = CASE WHEN :ExpiredPassword = '' THEN 1
                            WHEN :ExpiredPassword = '1'
                             AND (DATE(user_info.date_password_expires) <= CURRENT_DATE
@@ -179,6 +213,36 @@ DCL-PROC generateJSONStream;
                             AND DATE(user_info.date_password_expires) > CURRENT_DATE
                             AND user_info.set_password_to_expire = 'NO' THEN 1
                            ELSE 0 END
+
+               -- fetch only with selected current library name
+              AND user_info.current_library_name
+                = CASE WHEN :CurrentLibrary = ''
+                       THEN user_info.current_library_name
+                       ELSE UPPER(:CurrentLibrary) END
+
+               -- fetch only with selected initial menu
+              AND user_info.initial_menu_name
+                = CASE WHEN :InitialMenuName = ''
+                       THEN user_info.initial_menu_name
+                       ELSE UPPER(:InitialMenuName) END
+
+               -- ftech only with selected initial menu library
+              AND user_info.initial_menu_library_name
+                = CASE WHEN :InitialMenuLibrary = ''
+                       THEN user_info.initial_menu_library_name
+                       ELSE UPPER(:InitialMenuLibrary) END
+
+               -- fetch only with selected initial program
+              AND user_info.initial_program_name
+                = CASE WHEN :InitialProgramName = ''
+                       THEN user_info.initial_program_name
+                       ELSE UPPER(:InitialProgramName) END
+
+               -- fetch only with selected initial program library
+              AND user_info.initial_program_library_name
+                = CASE WHEN :InitialProgramLibrary = ''
+                       THEN user_info.initial_program_library_name
+                       ELSE UPPER(:InitialProgramLibrary) END
 
             ORDER BY user_info.authorization_name;
 

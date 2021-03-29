@@ -60,12 +60,12 @@ DCL-PROC Main;
 
  ElseIf ( InputParmDS.Method = 'DELETE' );
    yajl_GenOpen(TRUE);
-   
+
    // end job immed
    endSelectedJob(InputParmDS);
-   
+
    yajl_WriteStdOut(200 :ErrorMessage);
-   
+
    yajl_GenClose();
 
  Else;
@@ -238,7 +238,7 @@ DCL-PROC endSelectedJob;
  yajl_BeginObj();
 
  yajl_AddBool('success' :(RC = 0));
- 
+
  If ( RC <> 0 );
    yajl_AddChar('errorMessage' :'Job not found or access denied.');
  EndIf;
