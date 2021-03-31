@@ -43,18 +43,20 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 5. Start your new http-server
 
 6. Try it out:
-Test customers
+6.1 Test customers
 ```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```
-User informations
+
+6.2 User informations
 ```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```
-Active jobs:
+
+6.3 Active jobs:
 ```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```
 
 
 ## Pocedures within the serviceprogram
 
 1. getHTTPInput:
-Reads the stream and fill in the neccessary variables like "REQUEST_METHOD" and so on
+Reads the stream and fill in the neccessary variables like "REQUEST_METHOD" and so on.
 These values are written to the "INPUTPARMDS" variable.
 
 2. writeHTTPOut:
