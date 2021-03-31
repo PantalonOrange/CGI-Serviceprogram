@@ -27,7 +27,7 @@ Auth against the IBMi - Userprofiles:
 </Directory>
 ```
 or without IBMi Userprofile with a validation-list:
-Create a validation list on your IBMi with: CRTVLDL TARGETLIB/TEST
+Create a validation list on your IBMi with: ```CRTVLDL TARGETLIB/TEST```.
 Change the http-conf to the following:
 ```
 <Directory /qsys.lib/targetlib.lib>
@@ -43,11 +43,11 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 5. Start your new http-server
 
 6. Try it out:
-Test customers
+.Test customers
 ```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```
-User informations
+.User informations
 ```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```
-Active jobs:
+.Active jobs:
 ```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```
 
 
