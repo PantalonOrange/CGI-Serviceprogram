@@ -255,8 +255,12 @@ DCL-PROC generateJSONStream;
    If ( SQLCode <> 0 );
      If FirstRun;
        // EOF or other errors
-       Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
        yajl_AddBool('success' :FALSE);
+       If ( SQLCode = 100 );
+         ErrorMessage = 'No user was found for your search';
+       Else;
+         Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
+       EndIf;
        yajl_AddChar('errorMessage' :%Trim(ErrorMessage));
      EndIf;
      Exec SQL CLOSE c_user_info_reader;
@@ -264,7 +268,8 @@ DCL-PROC generateJSONStream;
    EndIf;
 
    If FirstRun;
-     FirstRun= FALSE;
+     // fill in the header informations and begin the array
+     FirstRun = FALSE;
      yajl_AddBool('success' :TRUE);
      yajl_AddNum('userCount' :%Char(UserCount));
      yajl_BeginArray('userInfo');

@@ -25,8 +25,10 @@
 //  - sbs = Subsystem
 //  - usr = Authorization_Name (user)
 //  - job = Jobname (format: 000000/user/job)
+//  - jobtype = Job type (int, bch etc)
 //  - jobsts = Job status (msgw etc)
 //  - fct = current running function (STRSQL etc)
+//  - clientip = Client ip address
 
 
 /INCLUDE QRPGLEH,GETACTJOBH
@@ -94,16 +96,21 @@ DCL-PROC generateJSONStream;
  DCL-S Subsystem CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S JobName VARCHAR(28) INZ;
+ DCL-S JobType CHAR(3) INZ;
  DCL-S JobStatus CHAR(4) INZ;
  DCL-S Function CHAR(10) INZ;
+ DCL-S ClientIPAddress VARCHAR(45) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
+ // retrieve parameters/values by name
  Subsystem = getValueByName('sbs' :pInputParmDS);
  AuthorizationName = getValueByName('usr' :pInputParmDS);
- JobName = getValueByName('job' :pInputParmDS);
+ JobName = %TrimR(getValueByName('job' :pInputParmDS));
+ JobType = getValueByName('jobtype' :pInputParmDS);
  JobStatus = getValueByName('jobsts' :pInputParmDS);
  Function = getValueByName('fct' :pInputParmDS);
+ ClientIPAddress = %TrimR(getValueByName('clientip' :pInputParmDS));
 
  yajl_BeginObj();
 
@@ -133,25 +140,41 @@ DCL-PROC generateJSONStream;
              LEFT JOIN qsys2.user_info
                ON (user_info.authorization_name = jobs.authorization_name)
 
+               -- ftech with subsystem name or all
             WHERE jobs.subsystem = CASE WHEN :Subsystem = ''
                                         THEN jobs.subsystem
                                         ELSE UPPER(:Subsystem) END
 
+               -- fetch with user name or all
               AND jobs.authorization_name = CASE WHEN :AuthorizationName = ''
                                                  THEN jobs.authorization_name
                                                  ELSE UPPER(:AuthorizationName) END
 
+               -- fetch with job name or all
               AND jobs.job_name = CASE WHEN :JobName = ''
                                        THEN jobs.job_name
                                        ELSE UPPER(:JobName) END
 
+               -- fetch with job type or all
+              AND jobs.job_type = CASE WHEN :JobType = ''
+                                       THEN jobs.job_type
+                                       ELSE UPPER(:JobType) END
+
+               -- fetch with job status or all
               AND jobs.job_status = CASE WHEN :JobStatus = ''
                                          THEN jobs.job_status
                                          ELSE RTRIM(UPPER(:JobStatus)) END
 
-              AND jobs.function = CASE WHEN :Function = ''
-                                       THEN jobs.function
-                                       ELSE RTRIM(UPPER(:Function)) END
+               -- fetch with currently used function or all
+              AND IFNULL(jobs.function, '') = CASE WHEN :Function = ''
+                                                   THEN IFNULL(jobs.function, '')
+                                                   ELSE RTRIM(UPPER(:Function)) END
+            
+               -- fetch with client ip address or all
+              AND IFNULL(jobs.client_ip_address, '') 
+                = CASE WHEN :ClientIPAddress = ''
+                       THEN IFNULL(jobs.client_ip_address, '')
+                       ELSE :ClientIPAddress END
 
             ORDER BY jobs.ordinal_position;
 
@@ -163,8 +186,13 @@ DCL-PROC generateJSONStream;
    Exec SQL FETCH NEXT FROM c_active_jobs_reader INTO :JobInfoDS;
    If ( SQLCode <> 0 );
      If FirstRun;
-       Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
+       // EOF or other errors
        yajl_AddBool('success' :FALSE);
+       If ( SQLCode = 100 );
+         ErrorMessage = 'No job was found for your search';
+       Else;
+         Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
+       EndIf;
        yajl_AddChar('errorMessage' :%Trim(ErrorMessage));
      EndIf;
      Exec SQL CLOSE c_active_jobs_reader;
@@ -172,7 +200,8 @@ DCL-PROC generateJSONStream;
    EndIf;
 
    If FirstRun;
-     FirstRun= FALSE;
+     // fill in the header informations and begin the array
+     FirstRun = FALSE;
      yajl_AddBool('success' :TRUE);
      yajl_AddNum('jobCount' :%Char(JobCount));
      yajl_BeginArray('activeJobInfo');
@@ -229,6 +258,7 @@ DCL-PROC endSelectedJob;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
+ // retrieve parameters/values by name
  JobName = getValueByName('job' :pInputParmDS);
 
  If ( JobName <> '' );
