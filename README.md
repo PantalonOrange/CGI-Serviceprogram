@@ -43,11 +43,11 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 5. Start your new http-server
 
 6. Try it out:
-.Test customers
+Test customers
 ```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```
-.User informations
+User informations
 ```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```
-.Active jobs:
+Active jobs:
 ```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```
 
 
@@ -67,7 +67,8 @@ Simple procedure to determine the HTTP header
 Get the value by name from parameters
 
 5. vtranslateData:
-Convert data between different CCSID's. ICONV is used for translation.
+Convert data between different CCSID's.
+ICONV is used for translation.
 
 6. parseQueryString:
 The "QUERY_STRING" is parsed here.
