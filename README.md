@@ -12,13 +12,15 @@ This servieprogram handle the incoming and outgoing streams to std-io.
 
 4. Add the following parts to the http-config
 
+
+```ScriptAliasMatch /targetlib/(.*)  /qsys.lib/targetlib.lib/$1```
+
 Auth against the IBMi - Userprofiles:
 ```
-ScriptAliasMatch /targetlib/(.*)  /qsys.lib/targetlib.lib/$1
 <Directory /qsys.lib/targetlib.lib>
   SetEnv QIBM_CGI_LIBRARY_LIST "targetlib;YAJL;QHTTPSVR"
   AuthType Basic
-  AuthName "IBMi_Basic_AuthType"
+  AuthName "Restricted Area"
   PasswdFile %%SYSTEM%%
   UserID %%CLIENT%%
   Require valid-user
@@ -34,6 +36,7 @@ Change the http-conf to the following:
   AuthName "Restricted Area"
   PasswdFile targetlib/test
   Require valid-user
+</Directory>
 ```
 Add the allowed users with the http-admin "Advanced" - "Internet-user"
 
@@ -54,13 +57,16 @@ Here we can write to the io-std
 3. getHTTPHeader:
 Simple procedure to determine the HTTP header
 
-4. vtranslateData:
+4. getValueByName
+Get the value by name from parameters
+
+5. vtranslateData:
 Convert data between different CCSID's. ICONV is used for translation.
 
-5. parseQueryString:
+6. parseQueryString:
 The "QUERY_STRING" is parsed here.
 "id=1&test=5" becomes DS id=1, test=2
 
-6. seperateValues:
+7. seperateValues:
 The parsed data from "parseQueryString" are simplified here even further. 
 "id=1" or "test=5" becomes DS id, 1 or test, 5
