@@ -1,6 +1,6 @@
 # CGI-Serviceprogram
 
-This is my simple cgi.serviceporgram for my favorit platform IBMi.
+This is my simple cgi.serviceporgram for my favorit platform IBMi.<br>
 This servieprogram handle the incoming and outgoing streams to std-io.
 
 ## Setup HTTP-Server on IBMi
@@ -26,8 +26,8 @@ Auth against the IBMi - Userprofiles:
   Require valid-user
 </Directory>
 ```
-or without IBMi Userprofile with a validation-list:
-Create a validation list on your IBMi with: ```CRTVLDL TARGETLIB/TEST```.
+or without IBMi Userprofile with a validation-list:<br>
+Create a validation list on your IBMi with: ```CRTVLDL TARGETLIB/TEST```.<br>
 Change the http-conf to the following:
 ```
 <Directory /qsys.lib/targetlib.lib>
@@ -56,7 +56,7 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 ## Pocedures within the serviceprogram
 
 1. getHTTPInput:
-Reads the stream and fill in the neccessary variables like "REQUEST_METHOD" and so on.
+Reads the stream and fill in the neccessary variables like "REQUEST_METHOD" and so on.<br>
 These values are written to the "INPUTPARMDS" variable.
 
 2. writeHTTPOut:
@@ -69,13 +69,13 @@ Simple procedure to determine the HTTP header
 Get the value by name from parameters
 
 5. vtranslateData:
-Convert data between different CCSID's.
+Convert data between different CCSID's.<br>
 ICONV is used for translation.
 
 6. parseQueryString:
-The "QUERY_STRING" is parsed here.
+The "QUERY_STRING" is parsed here.<br>
 "id=1&test=5" becomes DS id=1, test=2
 
 7. seperateValues:
-The parsed data from "parseQueryString" are simplified here even further. 
+The parsed data from "parseQueryString" are simplified here even further.<br>
 "id=1" or "test=5" becomes DS id, 1 or test, 5
