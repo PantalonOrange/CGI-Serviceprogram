@@ -42,7 +42,10 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 
 5. Start your new http-server
 
-6. Try it out: ```http://yourIP:port/targetlib/cgitstrg.pgm?id=1```
+6. Try it out: 
+```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```
+```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```
+```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```
 
 
 ## Pocedures within the serviceprogram
