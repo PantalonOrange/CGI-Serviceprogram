@@ -42,9 +42,12 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 
 5. Start your new http-server
 
-6. Try it out: 
+6. Try it out:
+Test customers
 ```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```
+User informations
 ```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```
+Active jobs:
 ```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```
 
 
