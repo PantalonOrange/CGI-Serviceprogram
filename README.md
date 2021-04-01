@@ -51,7 +51,10 @@ User informations<br>
 ```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```<br>
 
 Active jobs:<br>
-```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```
+```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```<br>
+
+Object locks:
+```https://yourIP:port/targetlib/getobjlck.pgm?lib=testlib&obj=customers```<br>
 
 
 ## Pocedures within the serviceprogram
