@@ -53,7 +53,7 @@ User informations<br>
 Active jobs:<br>
 ```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```<br>
 
-Object locks:
+Object locks:<br>
 ```https://yourIP:port/targetlib/getobjlck.pgm?lib=testlib&obj=customers```<br>
 
 
