@@ -53,9 +53,19 @@ DCL-PROC Main;
    yajl_GenOpen(TRUE);
 
    // read job-information and generate json-stream
-   generateJSONStream(InputParmDS);
+   readJobsAndCreateJSON(InputParmDS);
 
    // return json stream to http-srv
+   yajl_WriteStdOut(200 :ErrorMessage);
+
+   yajl_GenClose();
+
+ ElseIf ( InputParmDS.Method = 'POST' );
+
+    yajl_GenOpen(TRUE);
+
+   handleIncommingPostData(InputParmDS);
+
    yajl_WriteStdOut(200 :ErrorMessage);
 
    yajl_GenClose();
@@ -83,7 +93,7 @@ END-PROC;
 
 //#########################################################################
 // parse selected jobs to json and return it
-DCL-PROC generateJSONStream;
+DCL-PROC readJobsAndCreateJSON;
  DCL-PI *N;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
@@ -100,6 +110,7 @@ DCL-PROC generateJSONStream;
  DCL-S JobStatus CHAR(4) INZ;
  DCL-S Function CHAR(10) INZ;
  DCL-S ClientIPAddress VARCHAR(45) INZ;
+ DCL-S Base64EncodedString CHAR(32000) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
@@ -127,6 +138,14 @@ DCL-PROC generateJSONStream;
                                      WHERE joblog.message_type = 'SENDER'
                                      ORDER BY joblog.ordinal_position DESC LIMIT 1), '')
                        ELSE '' END,
+                  CASE WHEN jobs.job_status = 'MSGW'
+                       THEN IFNULL((SELECT CAST(msgq.message_key AS CHAR(4))
+                                      FROM qsys2.message_queue_info msgq
+                                     WHERE msgq.message_queue_name = 'QSYSOPR'
+                                       AND msgq.message_type = 'INQUIRY'
+                                       AND msgq.from_job = jobs.job_name
+                                     ORDER BY msgq.message_timestamp DESC LIMIT 1), '')
+                        ELSE '' END,
                   IFNULL(jobs.authorization_name, ''),
                   IFNULL(user_info.text_description, ''),
                   IFNULL(jobs.function_type, ''),
@@ -140,7 +159,7 @@ DCL-PROC generateJSONStream;
              LEFT JOIN qsys2.user_info
                ON (user_info.authorization_name = jobs.authorization_name)
 
-               -- ftech with subsystem name or all
+               -- fetch with subsystem name or all
             WHERE jobs.subsystem = CASE WHEN :Subsystem = ''
                                         THEN jobs.subsystem
                                         ELSE UPPER(:Subsystem) END
@@ -169,9 +188,9 @@ DCL-PROC generateJSONStream;
               AND IFNULL(jobs.function, '') = CASE WHEN :Function = ''
                                                    THEN IFNULL(jobs.function, '')
                                                    ELSE RTRIM(UPPER(:Function)) END
-            
+
                -- fetch with client ip address or all
-              AND IFNULL(jobs.client_ip_address, '') 
+              AND IFNULL(jobs.client_ip_address, '')
                 = CASE WHEN :ClientIPAddress = ''
                        THEN IFNULL(jobs.client_ip_address, '')
                        ELSE :ClientIPAddress END
@@ -189,7 +208,7 @@ DCL-PROC generateJSONStream;
        // EOF or other errors
        yajl_AddBool('success' :FALSE);
        If ( SQLCode = 100 );
-         ErrorMessage = 'No job was found for your search';
+         ErrorMessage = 'Your request did not produce a result';
        Else;
          Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
        EndIf;
@@ -203,33 +222,54 @@ DCL-PROC generateJSONStream;
      // fill in the header informations and begin the array
      FirstRun = FALSE;
      yajl_AddBool('success' :TRUE);
-     yajl_AddNum('jobCount' :%Char(JobCount));
+     yajl_AddNum('results' :%Char(JobCount));
      yajl_BeginArray('activeJobInfo');
      ArrayItem = TRUE;
    EndIf;
 
    yajl_BeginObj();
+
    yajl_AddNum('ordinalPosition' :%Char(JobInfoDS.OrdinalPosition));
    yajl_AddChar('subSystem' :%TrimR(JobInfoDS.Subsystem));
    yajl_AddChar('jobName' :%TrimR(JobInfoDS.JobName));
    yajl_AddChar('jobType' :%TrimR(JobInfoDS.JobType));
    yajl_AddChar('jobStatus' :%TrimR(JobInfoDS.JobStatus));
+
    If ( JobInfoDS.JobMessage <> '' );
      yajl_AddChar('jobMessage' :%TrimR(JobInfoDS.JobMessage));
+
+     If ( JobInfoDS.MessageKey <> '' );
+       // encode the message key to base64
+       Base64EncodedString = encodeBase64(%Addr(JobInfoDS.MessageKey)
+                                          :%Len(%TrimR(JobInfoDS.MessageKey)));
+
+       If ( Base64EncodedString <> '' );
+         yajl_AddChar('messageKey' :%TrimR(Base64EncodedString));
+      EndIf;
+
+     EndIf;
+
    EndIf;
+
    yajl_AddChar('authorizationName' :%TrimR(JobInfoDS.AuthorizationName));
    yajl_AddChar('authorizationDescription' :%TrimR(JobInfoDS.AuthorizationDescription));
+
    If ( JobInfoDS.FunctionType <> '' );
      yajl_AddChar('functionType' :%TrimR(JobInfoDS.FunctionType));
    EndIf;
+
    If ( JobInfoDS.Function <> '' );
      yajl_AddChar('function' :%TrimR(JobInfoDS.Function));
    EndIf;
+
    yajl_AddNum('temporaryStorage' :%Char(JobInfoDS.TemporaryStorage));
+
    If ( JobInfoDS.ClientIPAddress <> '' );
      yajl_AddChar('clientIPAddress' :%TrimR(JobInfoDS.ClientIPAddress));
    EndIf;
+
    yajl_AddChar('jobActiveTime' :%TrimR(JobInfoDS.JobActiveTime));
+
    yajl_EndObj();
 
  EndDo;
@@ -243,6 +283,96 @@ DCL-PROC generateJSONStream;
  Return;
 
 END-PROC;
+
+//#########################################################################
+// handle incoming data from post method
+//  available methods:
+//   - replyList: reply to message-waits
+DCL-PROC handleIncommingPostData;
+ DCL-PI *N;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
+ END-PI;
+
+ /INCLUDE QRPGLECPY,QMHSNDRM
+
+ DCL-DS ErrorDS LIKEDS(ErrorDS_T);
+
+ DCL-S NodeTree LIKE(Yajl_Val) INZ;
+ DCL-S ReplyList LIKE(Yajl_Val) INZ;
+ DCL-S Val Like(Yajl_Val) INZ;
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Index INT(10) INZ;
+ DCL-S MessageKey CHAR(10) INZ;
+ DCL-S Reply CHAR(10) INZ;
+ DCL-S ErrorMessage VARCHAR(500) INZ;
+ //------------------------------------------------------------------------
+
+ If ( pInputParmDS.Data <> *NULL );
+   translateData(pInputParmDS.Data :pInputParmDS.DataLength :UTF8 :0);
+   NodeTree = yajl_Buf_Load_Tree(pInputParmDS.Data :pInputParmDS.DataLength :ErrorMessage);
+
+   Success = ( NodeTree <> *NULL );
+
+   If Success;
+     ReplyList = yajl_Object_Find(NodeTree :'replyList');
+    // reply to message waits with submitted message key and reply
+
+     If ( ReplyList <> *NULL );
+
+       DoW yajl_Array_Loop(ReplyList :Index :NodeTree);
+
+         Val = yajl_Object_Find(NodeTree :'messageKey');
+         If ( Val <> *NULL );
+           MessageKey = yajl_Get_String(Val);
+           MessageKey = %TrimR(decodeBase64(%Addr(MessageKey)));
+           Success = ( MessageKey <> '' );
+         EndIf;
+
+        If Success;
+           Val = yajl_Object_Find(NodeTree :'replyMessage');
+           If ( Val <> *NULL );
+             Reply = yajl_Get_String(Val);
+           EndIf;
+           Success = ( Reply <> '' );
+         EndIf;
+
+         If Success And ( MessageKey <> '' ) And ( Reply <> '' );
+           // finaly reply to the selected message
+           sendReplyMessage(%SubSt(MessageKey :1 :4) :'QSYSOPR   QSYS'
+                            :%Addr(Reply) :%Len(%TrimR(Reply))
+                            :'*NO' :ErrorDS);
+           If ( ErrorDS.BytesAvailable > 0 );
+             Success = FALSE;
+             ErrorMessage = %SubSt(ErrorDS.MessageData :1 :ErrorDS.BytesAvailable);
+           EndIf;
+
+         Else;
+           Success = FALSE;
+           ErrorMessage = 'messageKey or replyMessage wrong/empty.';
+
+         EndIf;
+
+       EndDo;
+
+     EndIf;
+
+   EndIf;
+
+ EndIf;
+
+ yajl_BeginObj();
+
+ yajl_AddBool('success' :Success);
+ If Not Success;
+   yajl_AddChar('errorMessage' :%TrimR(ErrorMessage));
+ EndIf;
+
+ yajl_EndObj();
+
+ Return;
+
+END-PROC;
+
 
 //#########################################################################
 // end selected job immed
@@ -262,6 +392,7 @@ DCL-PROC endSelectedJob;
  JobName = getValueByName('job' :pInputParmDS);
 
  If ( JobName <> '' );
+   // simple endjob *immed
    RC = system('ENDJOB JOB(' + %TrimR(JobName) + ') OPTION(*IMMED)');
  EndIf;
 

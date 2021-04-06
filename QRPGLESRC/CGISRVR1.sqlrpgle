@@ -27,7 +27,7 @@
 
 /DEFINE CTL_SRVPGM
 /INCLUDE QRPGLECPY,H_SPECS
-CTL-OPT BNDDIR('QZHBCGI');
+CTL-OPT BNDDIR('QZHBCGI' :'QAXIS10HT');
 
 
 /DEFINE COMPILE_CGISRVR1
@@ -249,6 +249,48 @@ DCL-PROC translateData EXPORT;
 
 END-PROC;
 
+//#########################################################################
+// encode stream to base64
+DCL-PROC encodeBase64 EXPORT;
+ DCL-PI *N CHAR(32000);
+  pIncomingPointer POINTER CONST;
+  pIncomingLength INT(10) CONST;
+ END-PI;
+
+ DCL-S EncodedLength INT(10) INZ;
+ DCL-S EncodedString CHAR(32000) INZ;
+ //------------------------------------------------------------------------
+
+ Monitor;
+   EncodedLength = encodeBase64Bin(%Addr(EncodedString) :pIncomingPointer :pIncomingLength);
+   On-Error;
+     Clear EncodedString;
+ EndMon;
+
+ Return EncodedString;
+
+END-PROC;
+
+//#########################################################################
+// decode stream from base64
+DCL-PROC decodeBase64 EXPORT;
+ DCL-PI *N CHAR(32000);
+  pIncomingPointer POINTER CONST;
+ END-PI;
+
+ DCL-S DecodedLength INT(10) INZ;
+ DCL-S DecodedString CHAR(32000) INZ;
+ //------------------------------------------------------------------------
+
+ Monitor;
+   DecodedLength = decodeBase64Bin(%Addr(DecodedString) :pIncomingPointer);
+   On-Error;
+     Clear DecodedString;
+ EndMon;
+
+ Return DecodedString;
+
+END-PROC;
 
 //#########################################################################
 // split incomming querystring (id=1&name=5 -> id=1 and name=5 etc)

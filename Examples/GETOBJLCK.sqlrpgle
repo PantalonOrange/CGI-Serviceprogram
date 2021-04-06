@@ -183,7 +183,7 @@ DCL-PROC generateJSONStream;
        // EOF or other errors
        yajl_AddBool('success' :FALSE);
        If ( SQLCode = 100 );
-         ErrorMessage = 'No object lock was found for your search';
+         ErrorMessage = 'Your request did not produce a result';
        Else;
          Exec SQL GET DIAGNOSTICS CONDITION 1 :ErrorMessage = MESSAGE_TEXT;
        EndIf;
@@ -197,7 +197,7 @@ DCL-PROC generateJSONStream;
      // fill in the header informations and begin the array
      FirstRun = FALSE;
      yajl_AddBool('success' :TRUE);
-     yajl_AddNum('lockCount' :%Char(LockCount));
+     yajl_AddNum('results' :%Char(LockCount));
      yajl_BeginArray('objectLockInfo');
      ArrayItem = TRUE;
    EndIf;
