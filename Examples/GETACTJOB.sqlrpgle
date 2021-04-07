@@ -24,7 +24,7 @@
 // The following parameters are implemented:
 //  - sbs = Subsystem
 //  - usr = Authorization_Name (user)
-//  - job = Jobname (format: 000000/user/job)
+//  - job = Jobname (format: 000000/user/sessionname)
 //  - jobtype = Job type (int, bch etc)
 //  - jobsts = Job status (msgw etc)
 //  - fct = current running function (STRSQL etc)
@@ -32,11 +32,16 @@
 
 // This cgi-exitprogram will end a selected job with DELETE
 // The following parameter is implemented:
-//  - job = Jobname (format: 000000/user/job)
+//  - job = Jobname (format: 000000/user/sessionname)
 
-// This cgi-exitprgram will answer a message-wait with a postet reply with POST
+// This cgi-exitprgram will answer a message-wait with a posted reply with POST
 // Use following json-format:
 //  - {"replyList": [{"replyMessage": "reply","messageKey": "BASE64-encoded messagekey"}]}
+
+// This cgi-exitprogram will end jobs with posted jobnames with POST
+// Use the following json-format:
+//  - {"endJobList": [{"jobName": "000000/user/sessionname"}]}
+
 
 /INCLUDE QRPGLEH,GETACTJOBH
 
@@ -62,7 +67,7 @@ DCL-PROC Main;
    handleIncommingPostData(InputParmDS);
 
  ElseIf ( InputParmDS.Method = 'DELETE' );
-   endSelectedJob(InputParmDS);
+   endSelectedJobOverDelete(InputParmDS);
 
  Else;
    ErrorMessage = %TrimR(InputParmDS.Method) + ' not allowed';
@@ -282,21 +287,17 @@ DCL-PROC handleIncommingPostData;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
 
- /INCLUDE QRPGLECPY,QMHSNDRM
-
- DCL-C MESSAGEQUEUE 'QSYSOPR   QSYS';
-
  DCL-DS ErrorDS LIKEDS(ErrorDS_T);
 
  DCL-S NodeTree LIKE(Yajl_Val) INZ;
  DCL-S ReplyList LIKE(Yajl_Val) INZ;
- DCL-S Val Like(Yajl_Val) INZ;
+ DCL-S EndJobList LIKE(Yajl_Val) INZ;
  DCL-S Success IND INZ(TRUE);
- DCL-S Index INT(10) INZ;
- DCL-S MessageKey CHAR(10) INZ;
- DCL-S Reply CHAR(10) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
+
+ yajl_GenOpen(TRUE);
+ yajl_BeginObj();
 
  If ( pInputParmDS.Data <> *NULL );
    translateData(pInputParmDS.Data :pInputParmDS.DataLength :UTF8 :0);
@@ -306,57 +307,20 @@ DCL-PROC handleIncommingPostData;
 
    If Success;
      ReplyList = yajl_Object_Find(NodeTree :'replyList');
-    // reply to message waits with submitted message key and reply
+     EndJobList = yajl_Object_Find(NodeTree :'endJobList');
 
-     If ( ReplyList <> *NULL );
+     Select;
+       When ( ReplyList <> *NULL );
+         // reply to message waits with submitted message key and reply
+         answerWithReply(NodeTree :ReplyList);
 
-       DoW yajl_Array_Loop(ReplyList :Index :NodeTree);
+       When ( EndJobList <> *NULL );
+         endJobOverJSON(NodeTree :EndJobList);
 
-         Val = yajl_Object_Find(NodeTree :'messageKey');
-         If ( Val <> *NULL );
-           MessageKey = yajl_Get_String(Val);
-           MessageKey = %TrimR(decodeBase64(%Addr(MessageKey)));
-           Success = ( MessageKey <> '' );
-         EndIf;
-
-        If Success;
-           Val = yajl_Object_Find(NodeTree :'replyMessage');
-           If ( Val <> *NULL );
-             Reply = yajl_Get_String(Val);
-           EndIf;
-           Success = ( Reply <> '' );
-         EndIf;
-
-         If Success And ( MessageKey <> '' ) And ( Reply <> '' );
-           // finaly reply to the selected message
-           sendReplyMessage(%SubSt(MessageKey :1 :4) :MESSAGEQUEUE
-                            :%TrimR(Reply) :%Len(%TrimR(Reply))
-                            :'*NO' :ErrorDS);
-           If ( ErrorDS.BytesAvailable > 0 );
-             Success = FALSE;
-             ErrorMessage = %SubSt(ErrorDS.MessageData :1 :ErrorDS.BytesAvailable);
-           EndIf;
-
-         Else;
-           Success = FALSE;
-           ErrorMessage = 'messageKey or replyMessage wrong/empty.';
-
-         EndIf;
-
-       EndDo;
-
-     EndIf;
+     EndSl;
 
    EndIf;
 
- EndIf;
-
- yajl_GenOpen(TRUE);
- yajl_BeginObj();
-
- yajl_AddBool('success' :Success);
- If Not Success;
-   yajl_AddChar('errorMessage' :%TrimR(ErrorMessage));
  EndIf;
 
  yajl_EndObj();
@@ -369,8 +333,8 @@ END-PROC;
 
 
 //#########################################################################
-// end selected job immed
-DCL-PROC endSelectedJob;
+// end selected job immed over DELETE request
+DCL-PROC endSelectedJobOverDelete;
  DCL-PI *N;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
@@ -386,8 +350,8 @@ DCL-PROC endSelectedJob;
  JobName = getValueByName('job' :pInputParmDS);
 
  If ( JobName <> '' );
-   // simple endjob *immed
-   RC = system('ENDJOB JOB(' + %TrimR(JobName) + ') OPTION(*IMMED)');
+   // end selected job *immed
+   RC = endSelectedJob(JobName);
  EndIf;
 
  yajl_GenOpen(TRUE);
@@ -404,5 +368,139 @@ DCL-PROC endSelectedJob;
  yajl_GenClose();
 
  Return;
+
+END-PROC;
+
+//#########################################################################
+// answer a message-wait with a given reply message
+DCL-PROC answerWithReply;
+ DCL-PI *N;
+  pNodeTree LIKE(Yajl_Val);
+  pReplyList LIKE(Yajl_Val);
+ END-PI;
+
+ /INCLUDE QRPGLECPY,QMHSNDRM
+
+ DCL-C MESSAGEQUEUE 'QSYSOPR   QSYS';
+
+ DCL-DS ErrorDS LIKEDS(ErrorDS_T);
+
+ DCL-S Val Like(Yajl_Val) INZ;
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Index INT(10) INZ;
+ DCL-S MessageKey CHAR(10) INZ;
+ DCL-S Reply CHAR(10) INZ;
+ DCL-S ErrorMessage VARCHAR(500) INZ;
+ //------------------------------------------------------------------------
+
+ yajl_BeginArray('replyResults');
+
+ DoW yajl_Array_Loop(pReplyList :Index :pNodeTree);
+
+   Val = yajl_Object_Find(pNodeTree :'messageKey');
+   If ( Val <> *NULL );
+     MessageKey = yajl_Get_String(Val);
+     MessageKey = %TrimR(decodeBase64(%Addr(MessageKey)));
+     Success = ( MessageKey <> '' );
+   EndIf;
+
+   If Success;
+     Val = yajl_Object_Find(pNodeTree :'replyMessage');
+     If ( Val <> *NULL );
+       Reply = yajl_Get_String(Val);
+     EndIf;
+     Success = ( Reply <> '' );
+   EndIf;
+
+   If Success And ( MessageKey <> '' ) And ( Reply <> '' );
+   // finaly reply to the selected message
+     sendReplyMessage(%SubSt(MessageKey :1 :4) :MESSAGEQUEUE
+                      :%TrimR(Reply) :%Len(%TrimR(Reply))
+                      :'*NO' :ErrorDS);
+     If ( ErrorDS.BytesAvailable > 0 );
+       Success = FALSE;
+       ErrorMessage = %SubSt(ErrorDS.MessageData :1 :ErrorDS.BytesAvailable);
+     EndIf;
+
+   Else;
+     Success = FALSE;
+     ErrorMessage = 'messageKey or replyMessage wrong/empty.';
+
+   EndIf;
+
+   yajl_BeginObj();
+   yajl_AddBool('success' :Success);
+   yajl_AddNum('id' :%Char(Index));
+   If Not Success;
+     yajl_AddChar('errorMessage' :ErrorMessage);
+   EndIf;
+   yajl_EndObj();
+
+ EndDo;
+
+ yajl_EndArray();
+
+END-PROC;
+
+//#########################################################################
+// end selected jobs immed over POST and json request
+DCL-PROC endJobOverJSON;
+ DCL-PI *N;
+  pNodeTree LIKE(Yajl_Val);
+  pJobList LIKE(Yajl_Val);
+ END-PI;
+
+ DCL-S Val Like(Yajl_Val) INZ;
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Index INT(10) INZ;
+ DCL-S JobName VARCHAR(28) INZ;
+ //------------------------------------------------------------------------
+
+ yajl_BeginArray('endJobResults');
+
+ DoW yajl_Array_Loop(pJobList :Index :pNodeTree);
+
+   Val = yajl_Object_Find(pNodeTree :'jobName');
+   If ( Val <> *NULL );
+     JobName = yajl_Get_String(Val);
+     Success = ( JobName <> '' );
+   EndIf;
+
+   If Success;
+     Success = (endSelectedJob(JobName) = 0);
+   EndIf;
+
+   yajl_BeginObj();
+   yajl_AddBool('success' :Success);
+   yajl_AddNum('jobName' :JobName);
+   If Not Success;
+     yajl_AddChar('errorMessage' :'Job not found or access denied.');
+   EndIf;
+   yajl_EndObj();
+
+ EndDo;
+
+ yajl_EndArray();
+
+END-PROC;
+
+//#########################################################################
+// end selected job immed over DELETE request
+DCL-PROC endSelectedJob;
+ DCL-PI *N INT(10);
+  pJobName VARCHAR(28) CONST;
+ END-PI;
+
+ /INCLUDE QRPGLECPY,SYSTEM
+
+ DCL-S RC INT(10) INZ(-1);
+ //------------------------------------------------------------------------
+
+ If ( pJobName <> '' );
+   // simple endjob *immed
+   RC = system('ENDJOB JOB(' + %TrimR(pJobName) + ') OPTION(*IMMED)');
+ EndIf;
+
+ Return RC;
 
 END-PROC;
