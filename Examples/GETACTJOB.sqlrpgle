@@ -20,7 +20,7 @@
 //- SOFTWARE.
 
 
-// This cgi-exitprogram will return the selected job-informations with GET
+// This cgi-exitprogram can return the selected job-informations with GET
 // The following parameters are implemented:
 //  - sbs = Subsystem
 //  - usr = Authorization_Name (user)
@@ -30,15 +30,15 @@
 //  - fct = current running function (STRSQL etc)
 //  - clientip = Client ip address
 
-// This cgi-exitprogram will end a selected job with DELETE
+// This cgi-exitprogram can end a selected job with DELETE
 // The following parameter is implemented:
 //  - job = Jobname (format: 000000/user/sessionname)
 
-// This cgi-exitprgram will answer a message-wait with a posted reply with POST
+// This cgi-exitprgram can answer one or more message-waits with given reply with POST
 // Use following json-format:
 //  - {"replyList": [{"replyMessage": "reply","messageKey": "BASE64-encoded messagekey"}]}
 
-// This cgi-exitprogram will end jobs with posted jobnames with POST
+// This cgi-exitprogram can end jobs with given jobnames with POST
 // Use the following json-format:
 //  - {"endJobList": [{"jobName": "000000/user/sessionname"}]}
 
@@ -282,6 +282,7 @@ END-PROC;
 // handle incoming data from post method
 //  available methods:
 //   - replyList: reply to message-waits
+//   - endJobList : end selected jobs
 DCL-PROC handleIncommingPostData;
  DCL-PI *N;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
@@ -472,7 +473,7 @@ DCL-PROC endJobOverJSON;
 
    yajl_BeginObj();
    yajl_AddBool('success' :Success);
-   yajl_AddNum('jobName' :JobName);
+   yajl_AddChar('jobName' :JobName);
    If Not Success;
      yajl_AddChar('errorMessage' :'Job not found or access denied.');
    EndIf;
