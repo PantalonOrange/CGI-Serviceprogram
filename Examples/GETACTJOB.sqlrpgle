@@ -486,7 +486,7 @@ DCL-PROC endJobOverJSON;
 END-PROC;
 
 //#########################################################################
-// end selected job immed over DELETE request
+// end selected job immed
 DCL-PROC endSelectedJob;
  DCL-PI *N INT(10);
   pJobName VARCHAR(28) CONST;
