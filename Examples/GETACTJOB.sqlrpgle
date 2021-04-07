@@ -20,7 +20,7 @@
 //- SOFTWARE.
 
 
-// This cgi-exitprogram will retourn the selected job-informations
+// This cgi-exitprogram will return the selected job-informations with GET
 // The following parameters are implemented:
 //  - sbs = Subsystem
 //  - usr = Authorization_Name (user)
@@ -30,6 +30,13 @@
 //  - fct = current running function (STRSQL etc)
 //  - clientip = Client ip address
 
+// This cgi-exitprogram will end a selected job with DELETE
+// The following parameter is implemented:
+//  - job = Jobname (format: 000000/user/job)
+
+// This cgi-exitprgram will answer a message-wait with a postet reply with POST
+// Use following json-format:
+//  - {"replyList": [{"replyMessage": "reply","messageKey": "BASE64-encoded messagekey"}]}
 
 /INCLUDE QRPGLEH,GETACTJOBH
 
@@ -49,36 +56,13 @@ DCL-PROC Main;
  InputParmDS = getHTTPInput();
 
  If ( InputParmDS.Method = 'GET' );
-
-   yajl_GenOpen(TRUE);
-
-   // read job-information and generate json-stream
    readJobsAndCreateJSON(InputParmDS);
 
-   // return json stream to http-srv
-   yajl_WriteStdOut(200 :ErrorMessage);
-
-   yajl_GenClose();
-
  ElseIf ( InputParmDS.Method = 'POST' );
-
-    yajl_GenOpen(TRUE);
-
    handleIncommingPostData(InputParmDS);
 
-   yajl_WriteStdOut(200 :ErrorMessage);
-
-   yajl_GenClose();
-
  ElseIf ( InputParmDS.Method = 'DELETE' );
-   yajl_GenOpen(TRUE);
-
-   // end job immed
    endSelectedJob(InputParmDS);
-
-   yajl_WriteStdOut(200 :ErrorMessage);
-
-   yajl_GenClose();
 
  Else;
    ErrorMessage = %TrimR(InputParmDS.Method) + ' not allowed';
@@ -123,6 +107,7 @@ DCL-PROC readJobsAndCreateJSON;
  Function = getValueByName('fct' :pInputParmDS);
  ClientIPAddress = %TrimR(getValueByName('clientip' :pInputParmDS));
 
+ yajl_GenOpen(TRUE);
  yajl_BeginObj();
 
  Exec SQL DECLARE c_active_jobs_reader INSENSITIVE CURSOR FOR
@@ -152,7 +137,7 @@ DCL-PROC readJobsAndCreateJSON;
                   IFNULL(jobs.function, ''),
                   IFNULL(jobs.temporary_storage, 0),
                   IFNULL(jobs.client_ip_address, ''),
-                  timestamp_iso8601(IFNULL(jobs.job_active_time, CURRENT_TIMESTAMP))
+                  IFNULL(timestamp_iso8601(jobs.job_active_time), '')
 
              FROM TABLE(qsys2.active_job_info(detailed_info => 'ALL')) AS jobs
 
@@ -268,7 +253,9 @@ DCL-PROC readJobsAndCreateJSON;
      yajl_AddChar('clientIPAddress' :%TrimR(JobInfoDS.ClientIPAddress));
    EndIf;
 
-   yajl_AddChar('jobActiveTime' :%TrimR(JobInfoDS.JobActiveTime));
+   If ( JobInfoDS.JobActiveTime <> '' );
+     yajl_AddChar('jobActiveTime' :%TrimR(JobInfoDS.JobActiveTime));
+   EndIf;
 
    yajl_EndObj();
 
@@ -279,6 +266,8 @@ DCL-PROC readJobsAndCreateJSON;
  EndIf;
 
  yajl_EndObj();
+ yajl_WriteStdOut(200 :ErrorMessage);
+ yajl_GenClose();
 
  Return;
 
@@ -294,6 +283,8 @@ DCL-PROC handleIncommingPostData;
  END-PI;
 
  /INCLUDE QRPGLECPY,QMHSNDRM
+
+ DCL-C MESSAGEQUEUE 'QSYSOPR   QSYS';
 
  DCL-DS ErrorDS LIKEDS(ErrorDS_T);
 
@@ -338,8 +329,8 @@ DCL-PROC handleIncommingPostData;
 
          If Success And ( MessageKey <> '' ) And ( Reply <> '' );
            // finaly reply to the selected message
-           sendReplyMessage(%SubSt(MessageKey :1 :4) :'QSYSOPR   QSYS'
-                            :%Addr(Reply) :%Len(%TrimR(Reply))
+           sendReplyMessage(%SubSt(MessageKey :1 :4) :MESSAGEQUEUE
+                            :%TrimR(Reply) :%Len(%TrimR(Reply))
                             :'*NO' :ErrorDS);
            If ( ErrorDS.BytesAvailable > 0 );
              Success = FALSE;
@@ -360,6 +351,7 @@ DCL-PROC handleIncommingPostData;
 
  EndIf;
 
+ yajl_GenOpen(TRUE);
  yajl_BeginObj();
 
  yajl_AddBool('success' :Success);
@@ -368,6 +360,8 @@ DCL-PROC handleIncommingPostData;
  EndIf;
 
  yajl_EndObj();
+ yajl_WriteStdOut(200 :ErrorMessage);
+ yajl_GenClose();
 
  Return;
 
@@ -396,6 +390,7 @@ DCL-PROC endSelectedJob;
    RC = system('ENDJOB JOB(' + %TrimR(JobName) + ') OPTION(*IMMED)');
  EndIf;
 
+ yajl_GenOpen(TRUE);
  yajl_BeginObj();
 
  yajl_AddBool('success' :(RC = 0));
@@ -405,6 +400,8 @@ DCL-PROC endSelectedJob;
  EndIf;
 
  yajl_EndObj();
+ yajl_WriteStdOut(200 :ErrorMessage);
+ yajl_GenClose();
 
  Return;
 

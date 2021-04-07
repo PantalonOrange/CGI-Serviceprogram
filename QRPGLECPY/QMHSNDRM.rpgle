@@ -28,7 +28,7 @@
 DCL-PR sendReplyMessage EXTPGM('QMHSNDRM');
   MessageKey CHAR(4) CONST;
   QualifiedMessageQueueName CHAR(20) CONST;
-  ReplyText POINTER CONST;
+  ReplyText CHAR(10) CONST;
   ReplyLength INT(10) CONST;
   RemoveMessage CHAR(10) CONST;
   ErrorDS LIKEDS(ErrorDS_T);
