@@ -300,7 +300,7 @@ DCL-PROC handleIncommingPostData;
  yajl_GenOpen(TRUE);
  yajl_BeginObj();
 
- If ( pInputParmDS.Data <> *NULL );
+ If ( pInputParmDS.ContentType = 'application/json' ) And ( pInputParmDS.Data <> *NULL );
    translateData(pInputParmDS.Data :pInputParmDS.DataLength :UTF8 :0);
    NodeTree = yajl_Buf_Load_Tree(pInputParmDS.Data :pInputParmDS.DataLength :ErrorMessage);
 
@@ -358,11 +358,17 @@ DCL-PROC endSelectedJobOverDelete;
  yajl_GenOpen(TRUE);
  yajl_BeginObj();
 
- yajl_AddBool('success' :(RC = 0));
+ yajl_BeginArray('endJobResults');
 
+ yajl_BeginObj();
+ yajl_AddBool('success' :(RC = 0));
+ yajl_AddChar('jobName' :%TrimR(JobName));
  If ( RC <> 0 );
    yajl_AddChar('errorMessage' :'Job not found or access denied.');
  EndIf;
+ yajl_EndObj();
+
+ yajl_EndArray();
 
  yajl_EndObj();
  yajl_WriteStdOut(200 :ErrorMessage);
