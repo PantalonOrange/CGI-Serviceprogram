@@ -42,6 +42,10 @@
 // Use the following json-format:
 //  - {"endJobList": [{"jobName": "000000/user/sessionname"}]}
 
+// This cgi-exitprogram can execute an given command with POST
+// Use the following json-format:
+//  - {"executeCommandList": [{"command": "full command to execute"}]}
+
 
 /INCLUDE QRPGLEH,GETACTJOBH
 
@@ -293,6 +297,7 @@ DCL-PROC handleIncommingPostData;
  DCL-S NodeTree LIKE(Yajl_Val) INZ;
  DCL-S ReplyList LIKE(Yajl_Val) INZ;
  DCL-S EndJobList LIKE(Yajl_Val) INZ;
+ DCL-S executeCommandList LIKE(Yajl_Val) INZ;
  DCL-S Success IND INZ(TRUE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
@@ -309,6 +314,7 @@ DCL-PROC handleIncommingPostData;
    If Success;
      ReplyList = yajl_Object_Find(NodeTree :'replyList');
      EndJobList = yajl_Object_Find(NodeTree :'endJobList');
+     executeCommandList = yajl_Object_Find(NodeTree :'executeCommandList');
 
      Select;
        When ( ReplyList <> *NULL );
@@ -317,6 +323,9 @@ DCL-PROC handleIncommingPostData;
 
        When ( EndJobList <> *NULL );
          endJobOverJSON(NodeTree :EndJobList);
+
+       When ( executeCommandList <> *NULL );
+         executeCommandOverJSON(NodeTree :executeCommandList);
 
      EndSl;
 
@@ -344,6 +353,7 @@ DCL-PROC endSelectedJobOverDelete;
 
  DCL-S RC INT(10) INZ(-1);
  DCL-S JobName VARCHAR(28) INZ;
+ DCL-S EndJobMessage CHAR(128) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
@@ -352,7 +362,7 @@ DCL-PROC endSelectedJobOverDelete;
 
  If ( JobName <> '' );
    // end selected job *immed
-   RC = endSelectedJob(JobName);
+   RC = endSelectedJob(JobName :EndJobMessage);
  EndIf;
 
  yajl_GenOpen(TRUE);
@@ -364,7 +374,7 @@ DCL-PROC endSelectedJobOverDelete;
  yajl_AddBool('success' :(RC = 0));
  yajl_AddChar('jobName' :%TrimR(JobName));
  If ( RC <> 0 );
-   yajl_AddChar('errorMessage' :'Job not found or access denied.');
+   yajl_AddChar('errorMessage' :%TrimR(EndJobMessage));
  EndIf;
  yajl_EndObj();
 
@@ -377,6 +387,51 @@ DCL-PROC endSelectedJobOverDelete;
  Return;
 
 END-PROC;
+
+
+//#########################################################################
+// end selected jobs immed over POST and json request
+DCL-PROC endJobOverJSON;
+ DCL-PI *N;
+  pNodeTree LIKE(Yajl_Val);
+  pJobList LIKE(Yajl_Val);
+ END-PI;
+
+ DCL-S Val Like(Yajl_Val) INZ;
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Index INT(10) INZ;
+ DCL-S JobName VARCHAR(28) INZ;
+ DCL-S EndJobMessage CHAR(128) INZ;
+ //------------------------------------------------------------------------
+
+ yajl_BeginArray('endJobResults');
+
+ DoW yajl_Array_Loop(pJobList :Index :pNodeTree);
+
+   Val = yajl_Object_Find(pNodeTree :'jobName');
+   If ( Val <> *NULL );
+     JobName = yajl_Get_String(Val);
+     Success = ( JobName <> '' );
+   EndIf;
+
+   If Success;
+     Success = (endSelectedJob(JobName :EndJobMessage) = 0);
+   EndIf;
+
+   yajl_BeginObj();
+   yajl_AddBool('success' :Success);
+   yajl_AddChar('jobName' :JobName);
+   If Not Success;
+     yajl_AddChar('errorMessage' :%TrimR(EndJobMessage));
+   EndIf;
+   yajl_EndObj();
+
+ EndDo;
+
+ yajl_EndArray();
+
+END-PROC;
+
 
 //#########################################################################
 // answer a message-wait with a given reply message
@@ -449,9 +504,10 @@ DCL-PROC answerWithReply;
 
 END-PROC;
 
+
 //#########################################################################
-// end selected jobs immed over POST and json request
-DCL-PROC endJobOverJSON;
+// call given command over POST and json request
+DCL-PROC executeCommandOverJSON;
  DCL-PI *N;
   pNodeTree LIKE(Yajl_Val);
   pJobList LIKE(Yajl_Val);
@@ -460,28 +516,29 @@ DCL-PROC endJobOverJSON;
  DCL-S Val Like(Yajl_Val) INZ;
  DCL-S Success IND INZ(TRUE);
  DCL-S Index INT(10) INZ;
- DCL-S JobName VARCHAR(28) INZ;
+ DCL-S Command CHAR(128) INZ;
+ DCL-S ExecuteCommandMessage CHAR(128) INZ;
  //------------------------------------------------------------------------
 
- yajl_BeginArray('endJobResults');
+ yajl_BeginArray('executeCommandResults');
 
  DoW yajl_Array_Loop(pJobList :Index :pNodeTree);
 
-   Val = yajl_Object_Find(pNodeTree :'jobName');
+   Val = yajl_Object_Find(pNodeTree :'command');
    If ( Val <> *NULL );
-     JobName = yajl_Get_String(Val);
-     Success = ( JobName <> '' );
+     Command = yajl_Get_String(Val);
+     Success = ( Command <> '' );
    EndIf;
 
    If Success;
-     Success = (endSelectedJob(JobName) = 0);
+     Success = (executeCommand(Command :ExecuteCommandMessage) = 0);
    EndIf;
 
    yajl_BeginObj();
    yajl_AddBool('success' :Success);
-   yajl_AddChar('jobName' :JobName);
+   yajl_AddChar('command' :Command);
    If Not Success;
-     yajl_AddChar('errorMessage' :'Job not found or access denied.');
+     yajl_AddChar('errorMessage' :%TrimR(ExecuteCommandMessage));
    EndIf;
    yajl_EndObj();
 
@@ -491,23 +548,62 @@ DCL-PROC endJobOverJSON;
 
 END-PROC;
 
+
 //#########################################################################
 // end selected job immed
 DCL-PROC endSelectedJob;
  DCL-PI *N INT(10);
   pJobName VARCHAR(28) CONST;
+  pErrorMessage CHAR(128);
  END-PI;
-
- /INCLUDE QRPGLECPY,SYSTEM
 
  DCL-S RC INT(10) INZ(-1);
  //------------------------------------------------------------------------
+
+ Clear pErrorMessage;
 
  If ( pJobName <> '' );
    // simple endjob *immed
    RC = system('ENDJOB JOB(' + %TrimR(pJobName) + ') OPTION(*IMMED)');
  EndIf;
 
+   If ( RC <> 0 );
+     pErrorMessage = %Str(strError(ErrNo));
+   EndIf;
+
  Return RC;
 
 END-PROC;
+
+
+//#########################################################################
+// execute given command
+DCL-PROC executeCommand;
+ DCL-PI *N INT(10);
+  pCommand VARCHAR(128) CONST;
+  pErrorMessage CHAR(128);
+ END-PI;
+
+ DCL-S RC INT(10) INZ(-1);
+ //------------------------------------------------------------------------
+
+ Clear pErrorMessage;
+
+ If ( pCommand <> '' );
+   // execute given command
+   RC = system(pCommand);
+
+   If ( RC <> 0 );
+     pErrorMessage = %Str(strError(ErrNo));
+   EndIf;
+
+ EndIf;
+
+ Return RC;
+
+END-PROC;
+
+
+//#########################################################################
+/DEFINE LOAD_ERRNO_PROCEDURE
+/INCLUDE QRPGLECPY,ERRNO_H

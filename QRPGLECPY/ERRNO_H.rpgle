@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021 Christian Brunner
+//- Copyright (c) 2019, 2021 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -19,38 +19,30 @@
 //- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //- SOFTWARE.
 
-/IF DEFINED (GETACTJOBH)
-/EOF
+/IF NOT DEFINED (ERRNO_H)
+
+/DEFINE ERRNO_H
+
+DCL-PR EP_ErrNo POINTER EXTPROC('__errno') END-PR;
+
+DCL-PR strerror POINTER EXTPROC('strerror');
+  ErrorNumber INT(10) VALUE;
+END-PR;
+
 /ENDIF
 
-/DEFINE GETACTJOBH
 
+/IF DEFINED (LOAD_ERRNO_PROCEDURE)
 
-/INCLUDE QRPGLECPY,H_SPECS
-CTL-OPT MAIN(Main) BNDDIR('CGISRVR1' :'YAJL');
+DCL-PROC errno;
+ DCL-PI *N INT(10) END-PI;
 
-DCL-PR Main EXTPGM('GETACTJOB') END-PR;
+ DCL-S xErrNo POINTER;
+ DCL-S ErrorCode INT(10) Based(xErrNo);
 
-/INCLUDE QRPGLEH,CGISRVR1_H
-/INCLUDE QRPGLESRC,YAJL_H
-/INCLUDE QRPGLECPY,SYSTEM
-/INCLUDE QRPGLECPY,BOOLIC
-/INCLUDE QRPGLECPY,ERRNO_H
-/INCLUDE QRPGLECPY,ERRORDS_H
+ xErrNo = EP_ErrNo();
+ Return ErrorCode;
 
-DCL-DS JobInfoDS_T QUALIFIED TEMPLATE;
- OrdinalPosition INT(10);
- Subsystem CHAR(10);
- JobName VARCHAR(28);
- JobType CHAR(3);
- JobStatus CHAR(4);
- JobMessage CHAR(1024);
- MessageKey CHAR(10);
- AuthorizationName CHAR(10);
- AuthorizationDescription VARCHAR(50);
- FunctionType CHAR(3);
- Function CHAR(10);
- TemporaryStorage INT(10);
- ClientIPAddress VARCHAR(45);
- JobActiveTime VARCHAR(26);
-END-DS;
+END-PROC;
+
+/ENDIF
