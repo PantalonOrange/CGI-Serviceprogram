@@ -420,7 +420,7 @@ DCL-PROC endJobOverJSON;
 
    yajl_BeginObj();
    yajl_AddBool('success' :Success);
-   yajl_AddChar('jobName' :JobName);
+   yajl_AddChar('jobName' :%TrimR(JobName));
    If Not Success;
      yajl_AddChar('errorMessage' :%TrimR(EndJobMessage));
    EndIf;
@@ -532,11 +532,13 @@ DCL-PROC executeCommandOverJSON;
 
    If Success;
      Success = (executeCommand(Command :ExecuteCommandMessage) = 0);
+   Else;
+     ExecuteCommandMessage = 'Invalid or empty command received.';
    EndIf;
 
    yajl_BeginObj();
    yajl_AddBool('success' :Success);
-   yajl_AddChar('command' :Command);
+   yajl_AddChar('command' :%TrimR(Command));
    If Not Success;
      yajl_AddChar('errorMessage' :%TrimR(ExecuteCommandMessage));
    EndIf;
