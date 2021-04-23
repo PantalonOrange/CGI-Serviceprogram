@@ -23,9 +23,9 @@
 
 /DEFINE ERRNO_H
 
-DCL-PR EP_ErrNo POINTER EXTPROC('__errno') END-PR;
+DCL-PR ep_ErrNo POINTER EXTPROC('__errno') END-PR;
 
-DCL-PR strerror POINTER EXTPROC('strerror');
+DCL-PR strError POINTER EXTPROC('strerror');
   ErrorNumber INT(10) VALUE;
 END-PR;
 
@@ -34,13 +34,13 @@ END-PR;
 
 /IF DEFINED (LOAD_ERRNO_PROCEDURE)
 
-DCL-PROC errno;
+DCL-PROC errNo;
  DCL-PI *N INT(10) END-PI;
 
- DCL-S xErrNo POINTER;
- DCL-S ErrorCode INT(10) Based(xErrNo);
+ DCL-S pErrNo POINTER;
+ DCL-S ErrorCode INT(10) Based(pErrNo);
 
- xErrNo = EP_ErrNo();
+ pErrNo = ep_ErrNo();
  Return ErrorCode;
 
 END-PROC;

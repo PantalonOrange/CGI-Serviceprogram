@@ -285,8 +285,9 @@ END-PROC;
 //#########################################################################
 // handle incoming data from post method
 //  available methods:
-//   - replyList: reply to message-waits
+//   - replyList : reply to message-waits
 //   - endJobList : end selected jobs
+//   - executeCommandList : execute commands
 DCL-PROC handleIncommingPostData;
  DCL-PI *N;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
@@ -297,7 +298,7 @@ DCL-PROC handleIncommingPostData;
  DCL-S NodeTree LIKE(Yajl_Val) INZ;
  DCL-S ReplyList LIKE(Yajl_Val) INZ;
  DCL-S EndJobList LIKE(Yajl_Val) INZ;
- DCL-S executeCommandList LIKE(Yajl_Val) INZ;
+ DCL-S ExecuteCommandList LIKE(Yajl_Val) INZ;
  DCL-S Success IND INZ(TRUE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
@@ -306,7 +307,9 @@ DCL-PROC handleIncommingPostData;
  yajl_BeginObj();
 
  If ( pInputParmDS.ContentType = 'application/json' ) And ( pInputParmDS.Data <> *NULL );
+   // translate incomming stream from utf8 to local ccsid
    translateData(pInputParmDS.Data :pInputParmDS.DataLength :UTF8 :0);
+
    NodeTree = yajl_Buf_Load_Tree(pInputParmDS.Data :pInputParmDS.DataLength :ErrorMessage);
 
    Success = ( NodeTree <> *NULL );
@@ -314,7 +317,7 @@ DCL-PROC handleIncommingPostData;
    If Success;
      ReplyList = yajl_Object_Find(NodeTree :'replyList');
      EndJobList = yajl_Object_Find(NodeTree :'endJobList');
-     executeCommandList = yajl_Object_Find(NodeTree :'executeCommandList');
+     ExecuteCommandList = yajl_Object_Find(NodeTree :'executeCommandList');
 
      Select;
        When ( ReplyList <> *NULL );
@@ -322,10 +325,12 @@ DCL-PROC handleIncommingPostData;
          answerWithReply(NodeTree :ReplyList);
 
        When ( EndJobList <> *NULL );
+         // end given jobs with submitted job-names
          endJobOverJSON(NodeTree :EndJobList);
 
-       When ( executeCommandList <> *NULL );
-         executeCommandOverJSON(NodeTree :executeCommandList);
+       When ( ExecuteCommandList <> *NULL );
+         // execute commands with submitted commands
+         executeCommandOverJSON(NodeTree :ExecuteCommandList);
 
      EndSl;
 
@@ -474,7 +479,7 @@ DCL-PROC answerWithReply;
      Success = ( Reply <> '' );
    EndIf;
 
-   If Success And ( MessageKey <> '' ) And ( Reply <> '' );
+   If Success;
    // finaly reply to the selected message
      sendReplyMessage(%SubSt(MessageKey :1 :4) :MESSAGEQUEUE
                       :%TrimR(Reply) :%Len(%TrimR(Reply))
@@ -510,7 +515,7 @@ END-PROC;
 DCL-PROC executeCommandOverJSON;
  DCL-PI *N;
   pNodeTree LIKE(Yajl_Val);
-  pJobList LIKE(Yajl_Val);
+  pExecuteCommandList LIKE(Yajl_Val);
  END-PI;
 
  DCL-S Val Like(Yajl_Val) INZ;
@@ -522,7 +527,7 @@ DCL-PROC executeCommandOverJSON;
 
  yajl_BeginArray('executeCommandResults');
 
- DoW yajl_Array_Loop(pJobList :Index :pNodeTree);
+ DoW yajl_Array_Loop(pExecuteCommandList :Index :pNodeTree);
 
    Val = yajl_Object_Find(pNodeTree :'command');
    If ( Val <> *NULL );
@@ -570,7 +575,7 @@ DCL-PROC endSelectedJob;
  EndIf;
 
    If ( RC <> 0 );
-     pErrorMessage = %Str(strError(ErrNo));
+     pErrorMessage = %Str(strError(errNo()));
    EndIf;
 
  Return RC;
@@ -596,7 +601,7 @@ DCL-PROC executeCommand;
    RC = system(pCommand);
 
    If ( RC <> 0 );
-     pErrorMessage = %Str(strError(ErrNo));
+     pErrorMessage = %Str(strError(errNo()));
    EndIf;
 
  EndIf;
