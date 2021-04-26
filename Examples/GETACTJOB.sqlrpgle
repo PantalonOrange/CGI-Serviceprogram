@@ -356,7 +356,7 @@ DCL-PROC endSelectedJobOverDelete;
 
  /INCLUDE QRPGLECPY,SYSTEM
 
- DCL-S RC INT(10) INZ(-1);
+ DCL-S Success IND INZ(TRUE);
  DCL-S JobName VARCHAR(28) INZ;
  DCL-S EndJobMessage CHAR(128) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
@@ -367,7 +367,7 @@ DCL-PROC endSelectedJobOverDelete;
 
  If ( JobName <> '' );
    // end selected job *immed
-   RC = endSelectedJob(JobName :EndJobMessage);
+   Success = endSelectedJob(JobName :EndJobMessage);
  EndIf;
 
  yajl_GenOpen(TRUE);
@@ -376,9 +376,9 @@ DCL-PROC endSelectedJobOverDelete;
  yajl_BeginArray('endJobResults');
 
  yajl_BeginObj();
- yajl_AddBool('success' :(RC = 0));
+ yajl_AddBool('success' :Success);
  yajl_AddChar('jobName' :%TrimR(JobName));
- If ( RC <> 0 );
+ If Not Success;
    yajl_AddChar('errorMessage' :%TrimR(EndJobMessage));
  EndIf;
  yajl_EndObj();
@@ -420,7 +420,7 @@ DCL-PROC endJobOverJSON;
    EndIf;
 
    If Success;
-     Success = (endSelectedJob(JobName :EndJobMessage) = 0);
+     Success = endSelectedJob(JobName :EndJobMessage);
    EndIf;
 
    yajl_BeginObj();
@@ -536,7 +536,7 @@ DCL-PROC executeCommandOverJSON;
    EndIf;
 
    If Success;
-     Success = (executeCommand(Command :ExecuteCommandMessage) = 0);
+     Success = executeCommand(Command :ExecuteCommandMessage);
    Else;
      ExecuteCommandMessage = 'Invalid or empty command received.';
    EndIf;
@@ -559,26 +559,32 @@ END-PROC;
 //#########################################################################
 // end selected job immed
 DCL-PROC endSelectedJob;
- DCL-PI *N INT(10);
+ DCL-PI *N IND;
   pJobName VARCHAR(28) CONST;
   pErrorMessage CHAR(128);
  END-PI;
 
- DCL-S RC INT(10) INZ(-1);
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Command VARCHAR(128) INZ;
  //------------------------------------------------------------------------
 
  Clear pErrorMessage;
 
  If ( pJobName <> '' );
-   // simple endjob *immed
-   RC = system('ENDJOB JOB(' + %TrimR(pJobName) + ') OPTION(*IMMED)');
- EndIf;
 
-   If ( RC <> 0 );
-     pErrorMessage = %Str(strError(errNo()));
+   Command = 'ENDJOB JOB(' + %TrimR(pJobName) + ') OPTION(*IMMED)';
+
+   // simple endjob *immed
+   Exec SQL CALL qsys2.qcmdexc(:Command);
+   Success = ( SQLCode = 0 );
+
+   If Not Success;
+     pErrorMessage = getDiagnosticMessage();
    EndIf;
 
- Return RC;
+ EndIf;
+
+ Return Success;
 
 END-PROC;
 
@@ -586,31 +592,48 @@ END-PROC;
 //#########################################################################
 // execute given command
 DCL-PROC executeCommand;
- DCL-PI *N INT(10);
+ DCL-PI *N IND;
   pCommand VARCHAR(128) CONST;
   pErrorMessage CHAR(128);
  END-PI;
 
- DCL-S RC INT(10) INZ(-1);
+ DCL-S Success IND INZ(TRUE);
+ DCL-S Command VARCHAR(128) INZ;
  //------------------------------------------------------------------------
 
  Clear pErrorMessage;
 
  If ( pCommand <> '' );
-   // execute given command
-   RC = system(pCommand);
 
-   If ( RC <> 0 );
-     pErrorMessage = %Str(strError(errNo()));
+   // execute given command
+   Command = pCommand;
+   Exec SQL CALL qsys2.qcmdexc(:Command);
+   Success = ( SQLCode = 0 );
+
+   If Not Success;
+     pErrorMessage = getDiagnosticMessage();
    EndIf;
 
  EndIf;
 
- Return RC;
+ Return Success;
 
 END-PROC;
 
 
 //#########################################################################
-/DEFINE LOAD_ERRNO_PROCEDURE
-/INCLUDE QRPGLECPY,ERRNO_H
+// get last escape/diagnostic message from current joblog
+DCL-PROC getDiagnosticMessage;
+ DCL-PI *N CHAR(128) END-PI;
+
+ DCL-S Message CHAR(128) INZ;
+ //------------------------------------------------------------------------
+
+ Exec SQL SELECT joblog.message_text INTO :Message
+            FROM TABLE(qsys2.joblog_info('*')) joblog
+           WHERE joblog.message_type = 'ESCAPE'
+           ORDER BY joblog.ordinal_position DESC LIMIT 1;
+
+ Return Message;
+
+END-PROC;
