@@ -332,10 +332,30 @@ DCL-PROC handleIncommingPostData;
          // execute commands with submitted commands
          executeCommandOverJSON(NodeTree :ExecuteCommandList);
 
+       Other;
+         // Error caused by unsupported json object
+         Success = FALSE;
+         ErrorMessage = 'Unsupported json-object received';
+
      EndSl;
 
    EndIf;
 
+ Else;
+   // Errors caused by unsupported content-type or empty data
+   Success = FALSE;
+   If ( pInputParmDS.Data = *NULL );
+     ErrorMessage = 'No data received.';
+   Else;
+     ErrorMessage = 'Unsupported content-type received.';
+   EndIf;
+
+ EndIf;
+
+ If Not Success;
+   yajl_AddBool('success' :Success);
+   yajl_AddChar('contentType' :%TrimR(pInputParmDS.ContentType));
+   yajl_AddChar('errorMessage' :%TrimR(ErrorMessage));
  EndIf;
 
  yajl_EndObj();
@@ -416,8 +436,9 @@ DCL-PROC endJobOverJSON;
    Val = yajl_Object_Find(pNodeTree :'jobName');
    If ( Val <> *NULL );
      JobName = yajl_Get_String(Val);
-     Success = ( JobName <> '' );
    EndIf;
+
+   Success = ( JobName <> '' );
 
    If Success;
      Success = endSelectedJob(JobName :EndJobMessage);
@@ -468,8 +489,9 @@ DCL-PROC answerWithReply;
    If ( Val <> *NULL );
      MessageKey = yajl_Get_String(Val);
      MessageKey = %TrimR(decodeBase64(%Addr(MessageKey)));
-     Success = ( MessageKey <> '' );
    EndIf;
+
+   Success = ( MessageKey <> '' );
 
    If Success;
      Val = yajl_Object_Find(pNodeTree :'replyMessage');
@@ -532,8 +554,9 @@ DCL-PROC executeCommandOverJSON;
    Val = yajl_Object_Find(pNodeTree :'command');
    If ( Val <> *NULL );
      Command = yajl_Get_String(Val);
-     Success = ( Command <> '' );
    EndIf;
+
+   Success = ( Command <> '' );
 
    If Success;
      Success = executeCommand(Command :ExecuteCommandMessage);
@@ -622,7 +645,7 @@ END-PROC;
 
 
 //#########################################################################
-// get last escape/diagnostic message from current joblog
+// get last diagnostic message from current joblog
 DCL-PROC getDiagnosticMessage;
  DCL-PI *N CHAR(128) END-PI;
 
