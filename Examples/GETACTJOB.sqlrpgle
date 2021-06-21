@@ -35,6 +35,7 @@
 //  - job = Jobname (format: 000000/user/sessionname)
 
 // This cgi-exitprgram can answer one or more message-waits with given reply with POST
+//   -> Will only run with qsysopr-message-queue
 // Use following json-format:
 //  - {"replyList": [{"replyMessage": "reply","messageKey": "BASE64-encoded messagekey"}]}
 
@@ -121,6 +122,16 @@ DCL-PROC readJobsAndCreateJSON;
 
  Exec SQL DECLARE c_active_jobs_reader INSENSITIVE CURSOR FOR
 
+            WITH message_queue_entries
+              (job_name, message_timestamp, message_key) AS
+            -- get all inquery messages from qsysopr-message-queue
+            (SELECT mq.from_job,
+                    mq.message_timestamp,
+                    CAST(mq.message_key AS CHAR(4))
+               FROM qsys2.message_queue_info mq
+              WHERE mq.message_queue_name = 'QSYSOPR'
+                AND mq.message_type = 'INQUIRY')
+
            SELECT jobs.ordinal_position,
                   IFNULL(jobs.subsystem, ''),
                   IFNULL(jobs.job_name, ''),
@@ -133,11 +144,9 @@ DCL-PROC readJobsAndCreateJSON;
                                      ORDER BY joblog.ordinal_position DESC LIMIT 1), '')
                        ELSE '' END,
                   CASE WHEN jobs.job_status = 'MSGW'
-                       THEN IFNULL((SELECT CAST(msgq.message_key AS CHAR(4))
-                                      FROM qsys2.message_queue_info msgq
-                                     WHERE msgq.message_queue_name = 'QSYSOPR'
-                                       AND msgq.message_type = 'INQUIRY'
-                                       AND msgq.from_job = jobs.job_name
+                       THEN IFNULL((SELECT msgq.message_key
+                                      FROM message_queue_entries msgq
+                                     WHERE msgq.job_name = jobs.job_name
                                      ORDER BY msgq.message_timestamp DESC LIMIT 1), '')
                         ELSE '' END,
                   IFNULL(jobs.authorization_name, ''),
@@ -508,7 +517,7 @@ DCL-PROC answerWithReply;
                       :'*NO' :ErrorDS);
      If ( ErrorDS.BytesAvailable > 0 );
        Success = FALSE;
-       ErrorMessage = %SubSt(ErrorDS.MessageData :1 :ErrorDS.BytesAvailable);
+       ErrorMessage = 'Error occurs while sending reply to message.';
      EndIf;
 
    Else;
@@ -521,7 +530,7 @@ DCL-PROC answerWithReply;
    yajl_AddBool('success' :Success);
    yajl_AddNum('id' :%Char(Index));
    If Not Success;
-     yajl_AddChar('errorMessage' :ErrorMessage);
+     yajl_AddChar('errorMessage' :%TrimR(ErrorMessage));
    EndIf;
    yajl_EndObj();
 
