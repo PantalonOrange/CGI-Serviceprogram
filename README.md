@@ -56,6 +56,9 @@ Active jobs:<br>
 Object locks:<br>
 ```https://yourIP:port/targetlib/getobjlck.pgm?lib=testlib&obj=customers```<br>
 
+History log infos:<br>
+```https://yourIP:port/targetlib/gethstlog?start=2021-07-11&end=2021-07-12&query=brc```<br>
+
 
 ## Pocedures within the serviceprogram
 
