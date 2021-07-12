@@ -153,6 +153,8 @@ DCL-PROC readJobsAndCreateJSON;
                   IFNULL(user_info.text_description, ''),
                   IFNULL(jobs.function_type, ''),
                   IFNULL(jobs.function, ''),
+                  IFNULL(jobs.sql_statement_text, ''),
+                  IFNULL(timestamp_iso8601(jobs.sql_statement_start_timestamp), ''),
                   IFNULL(jobs.temporary_storage, 0),
                   IFNULL(jobs.client_ip_address, ''),
                   IFNULL(timestamp_iso8601(jobs.job_active_time), '')
@@ -263,6 +265,14 @@ DCL-PROC readJobsAndCreateJSON;
 
    If ( JobInfoDS.Function <> '' );
      yajl_AddChar('function' :%TrimR(JobInfoDS.Function));
+   EndIf;
+
+   If ( JobInfoDS.LastRunningSQLStatement <> '' );
+     yajl_AddChar('lastRunningSQLStatement' :%TrimR(JobInfoDS.LastRunningSQLStatement));
+     If ( JobInfoDS.LastRunningSQLStatementStartTimestamp <> '' );
+       yajl_AddChar('lastRunningSQLStatementStart'
+                    :%TrimR(JobInfoDS.LastRunningSQLStatementStartTimestamp));
+     EndIf;
    EndIf;
 
    yajl_AddNum('temporaryStorage' :%Char(JobInfoDS.TemporaryStorage));
