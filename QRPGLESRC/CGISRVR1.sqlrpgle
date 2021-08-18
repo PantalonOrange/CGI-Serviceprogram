@@ -46,7 +46,6 @@ DCL-PROC getHTTPInput EXPORT;
  DCL-DS InputParmDS LIKEDS(InputParmDS_T) INZ;
 
  DCL-S Receiver POINTER;
- DCL-S ContentType CHAR(20) INZ;
  DCL-S ContentLength INT(10) INZ;
  DCL-S BytesAvailable INT(10) INZ;
  DCL-S QueryString CHAR(128) INZ;
@@ -66,9 +65,7 @@ DCL-PROC getHTTPInput EXPORT;
 
  Receiver = getEnvironmentVariable('CONTENT_TYPE' :ErrorDS);
  If ( Receiver <> *NULL );
-   ContentType = %Str(Receiver);
-   Exec SQL SET :ContentType = LOWER(:ContentType);
-   InputParmDS.ContentType = ContentType;
+   InputParmDS.ContentType = %Lower(%Str(Receiver));
  EndIf;
 
  Monitor;
