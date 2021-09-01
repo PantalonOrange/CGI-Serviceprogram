@@ -27,6 +27,7 @@
 //  - msgtyp = Messagetype (informational etc)
 //  - sev = Severity (0 to 99)
 //  - frmpgm = Program
+//  - limit = Number of rows to fetch (default = 10)
 
 
 /INCLUDE QRPGLEH,GETJOBLOGH
@@ -72,6 +73,7 @@ DCL-PROC readJobLogInfosAndCreateJSON;
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S JobLogCount INT(10) INZ;
+ DCL-S LimitFetch INT(10) INZ(10);
  DCL-S JobName CHAR(28);
  DCL-S MessageID CHAR(7) INZ;
  DCL-S MessageType CHAR(13) INZ;
@@ -94,6 +96,15 @@ DCL-PROC readJobLogInfosAndCreateJSON;
      Reset Severity;
  EndMon;
  FromProgram = getValueByName('frmpgm' :pInputParmDS);
+
+ Monitor;
+   LimitFetch = %Int(getValueByName('limit' :pInputParmDS));
+   If ( LimitFetch <= 0 );
+     Reset LimitFetch;
+   EndIf;
+   On-Error;
+     Reset LimitFetch;
+ EndMon;
 
  yajl_GenOpen(TRUE);
  yajl_BeginObj();
@@ -136,7 +147,8 @@ DCL-PROC readJobLogInfosAndCreateJSON;
               AND joblog.from_program =
                    CASE WHEN :FromProgram = '' THEN joblog.from_program
                         ELSE :FromProgram END
-            ORDER BY joblog.ordinal_position DESC;
+            ORDER BY joblog.ordinal_position DESC
+            LIMIT :LimitFetch;
 
  Exec SQL OPEN c_joblog_info_reader;
 
