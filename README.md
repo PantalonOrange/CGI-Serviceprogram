@@ -59,6 +59,9 @@ Object locks:<br>
 History log infos:<br>
 ```https://yourIP:port/targetlib/gethstlog.pgm?start=2021-07-11&end=2021-07-12&query=brc```<br>
 
+Job log infos:<br>
+```https://yourIP:port/targetlib/getjoblog.pgm?job=067435/QUSER/QZDASOINIT&limit=20```<br>
+
 
 ## Pocedures within the serviceprogram
 
