@@ -84,8 +84,8 @@ ICONV is used for translation.
 
 6. parseQueryString:
 The "QUERY_STRING" is parsed here.<br>
-"id=1&test=5" becomes DS id=1, test=2
+"id=1&test=5" becomes DS [id=1], [test=2]
 
 7. seperateValues:
 The parsed data from "parseQueryString" are simplified here even further.<br>
-"id=1" or "test=5" becomes DS id, 1 or test, 5
+"id=1" or "test=5" becomes DS [{id}{1}] or [{test}{5}]
