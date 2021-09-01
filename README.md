@@ -62,6 +62,8 @@ History log infos:<br>
 Job log infos:<br>
 ```https://yourIP:port/targetlib/getjoblog.pgm?job=067435/QUSER/QZDASOINIT&limit=20```<br>
 
+Object statistic infos:<br>
+```https://yourIP:port/targetlib/getobjinf.pgm?lib=yajl&objtype=*file```<br>
 
 ## Pocedures within the serviceprogram
 
