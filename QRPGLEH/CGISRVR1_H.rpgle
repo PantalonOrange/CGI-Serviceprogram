@@ -55,6 +55,20 @@ DCL-PR translateData;
  ToCCSID INT(10) CONST;
 END-PR;
 
+// Encode string to base64
+DCL-PR encodeBase64 CHAR(32000);
+ IncomingString POINTER CONST;
+ IncomingLength INT(10) CONST;
+END-PR;
+
+// Decode base64 encoded string
+DCL-PR decodeBase64 CHAR(32000);
+ IncomingPointer POINTER CONST;
+END-PR;
+
+// get basic server informations
+DCL-PR getServerInformations LIKEDS(ServerInformationDS_T) END-PR;
+
 
 // Constants to get http-header by type
 DCL-C HTTP_JSON_OK 0;
@@ -89,9 +103,16 @@ DCL-DS SeperatedKeysDS_T QUALIFIED TEMPLATE;
  ExtractedValue CHAR(128);
 END-DS;
 
+// Server informations
+DCL-DS ServerInformationDS_T QUALIFIED TEMPLATE;
+ ServerName VARCHAR(128);
+ ServerRelease CHAR(10);
+END-DS;
+
 
 /IF DEFINED (COMPILE_CGISRVR1)
 /INCLUDE QRPGLECPY,ERRORDS_H
 /INCLUDE QRPGLECPY,BOOLIC
+/INCLUDE QRPGLECPY,BASE64
 DCL-C CRLF x'0D25';
 /ENDIF

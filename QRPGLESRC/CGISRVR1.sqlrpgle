@@ -290,6 +290,34 @@ DCL-PROC decodeBase64 EXPORT;
 END-PROC;
 
 //#########################################################################
+// get basic server informations
+DCL-PROC getServerInformations EXPORT;
+ DCL-PI *N LIKEDS(ServerInformationDS_T) END-PI;
+
+ DCL-DS ServerInformationDS LIKEDS(ServerInformationDS_T) INZ;
+ //------------------------------------------------------------------------
+
+ Exec SQL SELECT IFNULL(msgf.message_text, CURRENT_SERVER),
+                 system_version.created_system_version
+            INTO :ServerInformationDS
+            FROM TABLE(qsys2.object_statistics
+                  (object_name => 'QSYS',
+                   object_schema => 'QSYS',
+                   objtypelist => '*LIB')) AS system_version
+            CROSS JOIN qsys2.message_file_data msgf
+            WHERE msgf.message_file_library = 'QHTTPSVR'
+              AND msgf.message_file = 'QHTTPMSG'
+              AND msgf.message_id = 'HTP1404';
+
+ If ( SQLCode <> 0 );
+   Reset ServerInformationDS;
+ EndIf;
+
+ Return ServerInformationDS;
+
+END-PROC;
+
+//#########################################################################
 // split incomming querystring (id=1&name=5 -> id=1 and name=5 etc)
 DCL-PROC parseQueryString;
  DCL-PI *N LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);

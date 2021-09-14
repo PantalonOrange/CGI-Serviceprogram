@@ -65,6 +65,10 @@ DCL-PROC Main;
 
  InputParmDS = getHTTPInput();
 
+ /IF DEFINED(USE_SERVER_INFO)
+ ServerInformationDS = getServerInformations();
+ /ENDIF
+
  If ( InputParmDS.Method = 'GET' );
    readJobsAndCreateJSON(InputParmDS);
 
@@ -119,6 +123,11 @@ DCL-PROC readJobsAndCreateJSON;
 
  yajl_GenOpen(TRUE);
  yajl_BeginObj();
+
+ /IF DEFINED(USE_SERVER_INFO)
+ yajl_AddChar('serverName' :%TrimR(ServerInformationDS.ServerName));
+ yajl_AddChar('serverRelease' :%TrimR(ServerInformationDS.ServerRelease));
+ /ENDIF
 
  Exec SQL DECLARE c_active_jobs_reader INSENSITIVE CURSOR FOR
 
