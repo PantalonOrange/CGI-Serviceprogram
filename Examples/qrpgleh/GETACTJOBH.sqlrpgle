@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021 Christian Brunner
+//- Copyright (c) 2021, 2022 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 /ENDIF
 
 /DEFINE GETACTJOBH
-/DEFINE USE_SERVER_INFO
+/UNDEFINE USE_SERVER_INFO
 
 
 /INCLUDE QRPGLECPY,H_SPECS
@@ -38,14 +38,11 @@ DCL-PR Main EXTPGM('GETACTJOB') END-PR;
 /INCLUDE QRPGLECPY,BOOLIC
 /INCLUDE QRPGLECPY,ERRORDS_H
 
-/IF DEFINED (USE_SERVER_INFO)
-DCL-DS ServerInformationDS LIKEDS(ServerInformationDS_T) INZ;
-/ENDIF
-
 DCL-DS JobInfoDS_T QUALIFIED TEMPLATE;
  OrdinalPosition INT(10);
  Subsystem CHAR(10);
  JobName VARCHAR(28);
+ JobNameShort VARCHAR(10);
  JobType CHAR(3);
  JobStatus CHAR(4);
  JobMessage CHAR(1024);
