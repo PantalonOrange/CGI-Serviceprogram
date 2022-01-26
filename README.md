@@ -48,22 +48,22 @@ Test customers<br>
 ```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```<br>
 
 User informations<br>
-```https://yourIP:port/targetlib/getusrinf.pgm?usrcls=secofr&exppwd=1&enabled=0```<br>
+```https://yourIP:port/targetlib/userinfos?usrcls=secofr&exppwd=1&enabled=0```<br>
 
 Active jobs:<br>
-```https://yourIP:port/targetlib/getactjob.pgm?sbs=qbatch&jobsts=msgw```<br>
+```https://yourIP:port/targetlib/activejobs?sbs=qbatch&jobsts=msgw```<br>
 
 Object locks:<br>
-```https://yourIP:port/targetlib/getobjlck.pgm?lib=testlib&obj=customers```<br>
+```https://yourIP:port/targetlib/objectlocks?lib=testlib&obj=customers```<br>
 
 History log infos:<br>
-```https://yourIP:port/targetlib/gethstlog.pgm?start=2021-07-11&end=2021-07-12&query=brc```<br>
+```https://yourIP:port/targetlib/historylogs?start=2021-07-11&end=2021-07-12&query=brc```<br>
 
 Job log infos:<br>
-```https://yourIP:port/targetlib/getjoblog.pgm?job=067435/QUSER/QZDASOINIT&limit=20```<br>
+```https://yourIP:port/targetlib/joblogs?job=067435/QUSER/QZDASOINIT&limit=20```<br>
 
 Object statistic infos:<br>
-```https://yourIP:port/targetlib/getobjinf.pgm?lib=yajl&objtype=*file```<br>
+```https://yourIP:port/targetlib/objectinfos?lib=yajl&objtype=*file```<br>
 
 ## Pocedures within the serviceprogram
 
