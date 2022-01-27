@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021 Christian Brunner
+//- Copyright (c) 2021,2022 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -108,7 +108,8 @@ DCL-PROC getHTTPInput EXPORT;
    When ( InputParmDS.Method = 'POST' ) Or ( InputParmDS.Method = 'PUT' );
      Select;
        When ( %Scan('text/json' :InputParmDS.ContentType) > 0 ) Or
-            ( %Scan('application/json' :InputParmDS.ContentType) > 0 ); // json stream
+            ( %Scan('application/json' :InputParmDS.ContentType) > 0 );
+         // json stream
          InputParmDS.Data = %Alloc(ContentLength);
          readStdIn(InputParmDS.Data :ContentLength :BytesAvailable :ErrorDS);
          InputParmDS.DataLength = BytesAvailable;
@@ -116,7 +117,8 @@ DCL-PROC getHTTPInput EXPORT;
            InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
          EndIf;
 
-       When ( %Scan('text/plain' :InputParmDS.ContentType) > 0 ); // plain text
+       When ( %Scan('text/plain' :InputParmDS.ContentType) > 0 );
+         // plain text
          InputParmDS.Data = %Alloc(ContentLength);
          readStdIn(InputParmDS.Data :ContentLength :BytesAvailable :ErrorDS);
          InputParmDS.DataLength = BytesAvailable;
@@ -314,6 +316,31 @@ DCL-PROC getServerInformations EXPORT;
  EndIf;
 
  Return ServerInformationDS;
+
+END-PROC;
+
+//#########################################################################
+// send message to joblog
+DCL-PROC sendMessageToJoblog EXPORT;
+ DCL-PI *N;
+  pMessage CHAR(256) CONST;
+ END-PI;
+
+ /INCLUDE QRPGLECPY,QMHSNDPM
+
+ DCL-DS MessageHandlingDS QUALIFIED INZ;
+  Length UNS(10);
+  Key CHAR(4);
+  Error CHAR(256);
+ END-DS;
+ //------------------------------------------------------------------------
+
+ MessageHandlingDS.Length = %Len(%TrimR(pMessage));
+ If ( MessageHandlingDS.Length >= 0 );
+   sendProgramMessage('CPF9897' :CPFMSG :pMessage: MessageHandlingDS.Length
+                      :'*DIAG'  :'*PGMBDY' :1 :MessageHandlingDS.Key
+                      :MessageHandlingDS.Error);
+ EndIf;
 
 END-PROC;
 

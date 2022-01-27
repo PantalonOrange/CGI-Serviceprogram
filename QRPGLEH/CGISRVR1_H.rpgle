@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021 Christian Brunner
+//- Copyright (c) 2021,2022 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -69,6 +69,11 @@ END-PR;
 // get basic server informations
 DCL-PR getServerInformations LIKEDS(ServerInformationDS_T) END-PR;
 
+// Send message to joblog
+DCL-PR sendMessageToJoblog;
+ Message CHAR(256) CONST;
+END-PR;
+
 
 // Constants to get http-header by type
 DCL-C HTTP_JSON_OK 0;
@@ -93,6 +98,7 @@ DCL-DS InputParmDS_T QUALIFIED TEMPLATE;
  RemoteIP CHAR(15);
  RemoteHost CHAR(128);
  UserAgent CHAR(128);
+ CorrespondingFileMultiPart CHAR(128);
  SeperatedKeysDS LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);
 END-DS;
 
@@ -114,5 +120,6 @@ END-DS;
 /INCLUDE QRPGLECPY,ERRORDS_H
 /INCLUDE QRPGLECPY,BOOLIC
 /INCLUDE QRPGLECPY,BASE64
+/INCLUDE QRPGLECPY,IFS_H
 DCL-C CRLF x'0D25';
 /ENDIF
