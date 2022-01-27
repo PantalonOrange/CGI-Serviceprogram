@@ -2,7 +2,7 @@
 
 This is my simple cgi.serviceporgram for my favorit platform IBMi.<br>
 This servieprogram handle the incoming and outgoing streams to std-io.
-
+<br><br>
 ## Setup HTTP-Server on IBMi
 1. Copy sourcefiles and compile them in your own library
 
@@ -42,10 +42,7 @@ Add the allowed users with the http-admin "Advanced" - "Internet-user"
 
 5. Start your new http-server
 
-6. Try it out:<br>
-
-Test customers<br>
-```https://yourIP:port/targetlib/cgitstrg.pgm?id=1```<br>
+6. Try out the delivered examples:<br>
 
 User informations<br>
 ```https://yourIP:port/targetlib/userinfos?usrcls=secofr&exppwd=1&enabled=0```<br>
@@ -65,6 +62,9 @@ Job log infos:<br>
 Object statistic infos:<br>
 ```https://yourIP:port/targetlib/objectinfos?lib=yajl&objtype=*file```<br>
 
+Or try them with my small windows app written in vb.net:<br>
+https://github.com/PantalonOrange/Control-for-IBM-i
+<br><br>
 ## Pocedures within the serviceprogram
 
 1. getHTTPInput:
