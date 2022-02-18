@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021, 2022 Christian Brunner
+//- Copyright (c) 2021 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -34,8 +34,8 @@
 //  - inimnulib = Initial menu library name
 //  - inipgmnam = Initial program name
 //  - inipgmlib = Initial program library name
-//  - query = Search with LIKE for autorization description
-//  - short = Return only authirzation_name and text_description
+
+//  - jobinfo = Add additional jobinformations (1/0)
 
 
 /INCLUDE QRPGLEH,GETUSRINFH
@@ -55,12 +55,17 @@ DCL-PROC Main;
 
  InputParmDS = getHTTPInput();
 
- /IF DEFINED(USE_SERVER_INFO)
- ServerInformationDS = getServerInformations();
- /ENDIF
-
  If ( InputParmDS.Method = 'GET' );
-   readUserInformationAndCreateJSON(InputParmDS);
+
+   yajl_GenOpen(TRUE);
+
+   // read user-information and generate json-stream
+   generateJSONStream(InputParmDS);
+
+   // return json stream to http-srv
+   yajl_WriteStdOut(200 :ErrorMessage);
+
+   yajl_GenClose();
 
  Else;
    ErrorMessage = %TrimR(InputParmDS.Method) + ' not allowed';
@@ -75,7 +80,7 @@ END-PROC;
 
 //#########################################################################
 // parse selected user to json and return it
-DCL-PROC readUserInformationAndCreateJSON;
+DCL-PROC generateJSONStream;
  DCL-PI *N;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
@@ -85,7 +90,7 @@ DCL-PROC readUserInformationAndCreateJSON;
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S UserCount INT(10) INZ;
- DCL-S AuthorizationName CHAR(12) INZ;
+ DCL-S AuthorizationName CHAR(10) INZ;
  DCL-S UserClass CHAR(10) INZ;
  DCL-S Enabled CHAR(1) INZ;
  DCL-S GroupProfile CHAR(10) INZ;
@@ -97,13 +102,12 @@ DCL-PROC readUserInformationAndCreateJSON;
  DCL-S InitialMenuLibrary CHAR(10) INZ;
  DCL-S InitialProgramName CHAR(10) INZ;
  DCL-S InitialProgramLibrary CHAR(10) INZ;
- DCL-S NameQuery CHAR(256) INZ;
- DCL-S ReturnShort IND INZ(FALSE);
+ DCL-S JobInfo IND INZ(FALSE);
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  // retrieve parameters/values by name
- AuthorizationName = '%' + %Trim(getValueByName('usr' :pInputParmDS)) + '%';
+ AuthorizationName = getValueByName('usr' :pInputParmDS);
  UserClass = getValueByName('usrcls' :pInputParmDS);
  Enabled = getValueByName('enabled' :pInputParmDS);
  GroupProfile = getValueByName('grpprf' :pInputParmDS);
@@ -115,10 +119,8 @@ DCL-PROC readUserInformationAndCreateJSON;
  InitialMenuLibrary = getValueByName('inimnulib' :pInputParmDS);
  InitialProgramName = getValueByName('inipgmnam' :pInputParmDS);
  InitialProgramLibrary = getValueByName('inipgmlib' :pInputParmDS);
- NameQuery = '%' + %Trim(getValueByName('query' :pInputParmDS)) + '%';
- ReturnShort = ( getValueByName('short' :pInputParmDS) = '1');
+ JobInfo = (getValueByName('jobinfo' :pInputParmDS) = '1');
 
- yajl_GenOpen(TRUE);
  yajl_BeginObj();
 
  Exec SQL DECLARE c_user_info_reader INSENSITIVE CURSOR FOR
@@ -140,7 +142,7 @@ DCL-PROC readUserInformationAndCreateJSON;
                   IFNULL(timestamp_iso8601(user_info.password_change_date), ''),
                   user_info.no_password_indicator,
                   user_info.password_expiration_interval,
-                  IFNULL(timestamp_iso8601(user_info.date_password_expires), ''),
+                  IFNULL(CHAR(user_info.date_password_expires), ''),
                   IFNULL(user_info.days_until_password_expires, 0),
                   user_info.set_password_to_expire,
                   user_info.user_class_name,
@@ -157,7 +159,7 @@ DCL-PROC readUserInformationAndCreateJSON;
                   user_info.limit_device_sessions,
                   user_info.maximum_allowed_storage,
                   user_info.storage_used,
-                  IFNULL(timestamp_iso8601(user_info.last_used_timestamp), ''),
+                  IFNULL(CHAR(DATE(user_info.last_used_timestamp)), ''),
                   IFNULL(timestamp_iso8601(user_info.creation_timestamp), ''),
                   IFNULL(current_running_jobs.job_count, 0)
 
@@ -167,8 +169,10 @@ DCL-PROC readUserInformationAndCreateJSON;
                ON current_running_jobs.authorization_name = user_info.authorization_name
 
                -- fetch only selected userprofile or all
-            WHERE CAST(user_info.authorization_name AS CHAR(12))
-                LIKE UPPER(TRIM(:AuthorizationName))
+            WHERE user_info.authorization_name
+                = CASE WHEN :AuthorizationName = ''
+                       THEN user_info.authorization_name
+                       ELSE UPPER(:AuthorizationName) END
 
                -- fetch only selected user-class profile or all
               AND REPLACE(user_info.user_class_name, '*', '')
@@ -240,7 +244,7 @@ DCL-PROC readUserInformationAndCreateJSON;
                        THEN IFNULL(user_info.initial_program_library_name, '')
                        ELSE UPPER(:InitialProgramLibrary) END
 
-              AND UPPER(user_info.text_description) LIKE TRIM(UPPER(:NameQuery));
+            ORDER BY user_info.authorization_name;
 
  Exec SQL OPEN c_user_info_reader;
 
@@ -274,82 +278,82 @@ DCL-PROC readUserInformationAndCreateJSON;
 
    yajl_BeginObj();
 
-   yajl_AddNum('position' :%Char(UserInfoDS.Position));
+   yajl_AddNum('ordinalPosition' :%Char(UserInfoDS.OrdinalPosition));
    yajl_AddChar('authorizationName' :%TrimR(UserInfoDS.AuthorizationName));
    yajl_AddChar('authorizationDescription' :%TrimR(UserInfoDS.AuthorizationDescription));
+   yajl_AddBool('isEnabled' :(UserInfoDS.Status = '*ENABLED'));
 
-   If Not ReturnShort;
+   If ( UserInfoDS.PreviousSignon <> '' );
+     yajl_AddChar('previousSignon' :%TrimR(UserInfoDS.PreviousSignon));
+   EndIf;
 
-     yajl_AddBool('isEnabled' :(UserInfoDS.Status = '*ENABLED'));
+   If ( UserInfoDS.SignOnAttemptsNotValid > 0 );
+     yajl_AddChar('signOnAttemptsNotValid' :%Char(UserInfoDS.SignOnAttemptsNotValid));
+   EndIf;
 
-     If ( UserInfoDS.PreviousSignon <> '' );
-       yajl_AddChar('previousSignon' :%TrimR(UserInfoDS.PreviousSignon));
-     EndIf;
+   If ( UserInfoDS.PasswordChangeDate <> '' );
+     yajl_AddChar('passwordChangeDate' :%TrimR(UserInfoDS.PasswordChangeDate));
+   EndIf;
 
-     If ( UserInfoDS.SignOnAttemptsNotValid > 0 );
-       yajl_AddChar('signOnAttemptsNotValid' :%Char(UserInfoDS.SignOnAttemptsNotValid));
-     EndIf;
+   yajl_AddBool('noPasswordIndicator' :(UserInfoDS.NoPassWordIndicator = 'YES'));
+   yajl_AddNum('passwordExpirationInterval' :%Char(UserInfoDS.PasswordExpirationInterval));
 
-     If ( UserInfoDS.PasswordChangeDate <> '' );
-       yajl_AddChar('passwordChangeDate' :%TrimR(UserInfoDS.PasswordChangeDate));
-     EndIf;
+   If ( UserInfoDS.DatePasswordExpires <> '' );
+     yajl_AddChar('datePasswordExpires' :%TrimR(UserInfoDS.DatePasswordExpires));
+   EndIf;
 
-     yajl_AddBool('noPasswordIndicator' :(UserInfoDS.NoPassWordIndicator = 'YES'));
-     yajl_AddNum('passwordExpirationInterval' :%Char(UserInfoDS.PasswordExpirationInterval));
+   If ( UserInfoDS.DaysUntilPasswordExpires > 0 );
+     yajl_AddNum('daysUntilPasswordExpires' :%Char(UserInfoDS.DaysUntilPasswordExpires));
+   EndIf;
 
-     If ( UserInfoDS.DatePasswordExpires <> '' );
-       yajl_AddChar('datePasswordExpires' :%TrimR(UserInfoDS.DatePasswordExpires));
-     EndIf;
+   yajl_AddBool('setPasswordToExpire' :(UserInfoDS.SetPasswordToExpire = 'YES'));
+   yajl_AddChar('userClassName' :%TrimR(UserInfoDS.UserClassName));
 
-     If ( UserInfoDS.DaysUntilPasswordExpires > 0 );
-       yajl_AddNum('daysUntilPasswordExpires' :%Char(UserInfoDS.DaysUntilPasswordExpires));
-     EndIf;
+   If ( UserInfoDS.GroupProfileName <> '' );
+     yajl_AddChar('groupProfileName' :%TrimR(UserInfoDS.GroupProfileName));
+   EndIf;
 
-     yajl_AddBool('setPasswordToExpire' :(UserInfoDS.SetPasswordToExpire = 'YES'));
-     yajl_AddChar('userClassName' :%TrimR(UserInfoDS.UserClassName));
+   yajl_AddChar('owner' :%TrimR(UserInfoDS.Owner));
+   yajl_AddChar('currentLibraryName' :%TrimR(UserInfoDS.CurrentLibraryName));
 
-     If ( UserInfoDS.GroupProfileName <> '' );
-       yajl_AddChar('groupProfileName' :%TrimR(UserInfoDS.GroupProfileName));
-     EndIf;
+   If (UserInfoDS.InitialMenuName <> '' );
+     yajl_BeginArray('initialMenu');
+      yajl_BeginObj();
+       yajl_AddChar('menuName' :%TrimR(UserInfoDS.InitialMenuName));
+       If ( UserInfoDS.InitialMenuLibrary <> '' );
+         yajl_AddChar('menuLibrary' :%TrimR(UserInfoDS.InitialMenuLibrary));
+       EndIf;
+      Yajl_EndObj();
+     yajl_EndArray();
+   EndIf;
 
-     yajl_AddChar('owner' :%TrimR(UserInfoDS.Owner));
-     yajl_AddChar('currentLibraryName' :%TrimR(UserInfoDS.CurrentLibraryName));
+   If (UserInfoDS.InitialProgramName <> '' );
+     yajl_BeginArray('initialProgram');
+      yajl_BeginObj();
+       yajl_AddChar('programName' :%TrimR(UserInfoDS.InitialProgramName));
+       If ( UserInfoDS.InitialProgramLibrary <> '' );
+         yajl_AddChar('programLibrary' :%TrimR(UserInfoDS.InitialProgramLibrary));
+       EndIf;
+      Yajl_EndObj();
+     yajl_EndArray();
+   EndIf;
 
-     If (UserInfoDS.InitialMenuName <> '' );
-       yajl_BeginArray('initialMenu');
-        yajl_BeginObj();
-         yajl_AddChar('menuName' :%TrimR(UserInfoDS.InitialMenuName));
-         If ( UserInfoDS.InitialMenuLibrary <> '' );
-           yajl_AddChar('menuLibrary' :%TrimR(UserInfoDS.InitialMenuLibrary));
-         EndIf;
-        Yajl_EndObj();
-       yajl_EndArray();
-     EndIf;
+   yajl_AddChar('limitCapabilities' :%TrimR(UserInfoDS.LimitCapabilities));
+   yajl_AddChar('displaySignonInformations' :%TrimR(UserInfoDS.DisplaySignonInformations));
+   yajl_AddChar('limitDeviceSessions' :%TrimR(UserInfoDS.LimitDeviceSessions));
+   yajl_AddNum('maximumStorageAllowed' :%Char(UserInfoDS.MaximumStorageAllowed));
+   yajl_AddNum('storageUsed' :%Char(UserInfoDS.StorageUsed));
 
-     If (UserInfoDS.InitialProgramName <> '' );
-       yajl_BeginArray('initialProgram');
-        yajl_BeginObj();
-         yajl_AddChar('programName' :%TrimR(UserInfoDS.InitialProgramName));
-         If ( UserInfoDS.InitialProgramLibrary <> '' );
-           yajl_AddChar('programLibrary' :%TrimR(UserInfoDS.InitialProgramLibrary));
-         EndIf;
-        Yajl_EndObj();
-       yajl_EndArray();
-     EndIf;
+   If ( UserInfoDS.LastUsedTimestamp <> '' );
+     yajl_AddChar('lastUsedTimestamp' :%TrimR(UserInfoDS.LastUsedTimestamp));
+   EndIf;
 
-     yajl_AddChar('limitCapabilities' :%TrimR(UserInfoDS.LimitCapabilities));
-     yajl_AddChar('displaySignonInformations' :%TrimR(UserInfoDS.DisplaySignonInformations));
-     yajl_AddChar('limitDeviceSessions' :%TrimR(UserInfoDS.LimitDeviceSessions));
-     yajl_AddNum('maximumStorageAllowed' :%Char(UserInfoDS.MaximumStorageAllowed));
-     yajl_AddNum('storageUsed' :%Char(UserInfoDS.StorageUsed));
+   yajl_AddChar('creationTimestamp' :%TrimR(UserInfoDS.CreationTimestamp));
+   yajl_AddNum('currentJobsRunning' :%Char(UserInfoDS.CurrentJobsRunning));
 
-     If ( UserInfoDS.LastUsedTimestamp <> '' );
-       yajl_AddChar('lastUsedTimestamp' :%TrimR(UserInfoDS.LastUsedTimestamp));
-     EndIf;
-
-     yajl_AddChar('creationTimestamp' :%TrimR(UserInfoDS.CreationTimestamp));
-     yajl_AddNum('currentJobsRunning' :%Char(UserInfoDS.CurrentJobsRunning));
-
+   If JobInfo And ( UserInfoDS.CurrentJobsRunning > 0 );
+     // if selected, show all active jobs for current user
+     getJobInfos(UserInfoDS.AuthorizationName);
    EndIf;
 
    yajl_EndObj();
@@ -361,8 +365,91 @@ DCL-PROC readUserInformationAndCreateJSON;
  EndIf;
 
  yajl_EndObj();
- yajl_WriteStdOut(200 :ErrorMessage);
- yajl_GenClose();
+
+ Return;
+
+END-PROC;
+
+//#########################################################################
+// parse all jobs from selected user to json and return it
+//  this is a copy from getactjob
+DCL-PROC getJobInfos;
+ DCL-PI *N;
+  pAuthorizationName CHAR(10) CONST;
+ END-PI;
+
+ DCL-DS JobInfoDS LIKEDS(JobInfoDS_T) INZ;
+ //------------------------------------------------------------------------
+
+ yajl_BeginArray('activeJobInfo');
+
+ Exec SQL DECLARE c_active_jobs_reader INSENSITIVE CURSOR FOR
+
+           SELECT jobs.ordinal_position,
+                  IFNULL(jobs.subsystem, ''),
+                  IFNULL(jobs.job_name, ''),
+                  IFNULL(jobs.job_type, ''),
+                  IFNULL(jobs.job_status, ''),
+                  CASE WHEN jobs.job_status = 'MSGW'
+                       THEN IFNULL((SELECT joblog.message_text
+                                      FROM TABLE(qsys2.joblog_info(jobs.job_name)) AS joblog
+                                     WHERE joblog.message_type = 'SENDER'
+                                     ORDER BY joblog.ordinal_position DESC LIMIT 1), '')
+                       ELSE '' END,
+                  IFNULL(jobs.function_type, ''),
+                  IFNULL(jobs.function, ''),
+                  IFNULL(jobs.temporary_storage, 0),
+                  IFNULL(jobs.client_ip_address, ''),
+                  timestamp_iso8601(IFNULL(jobs.job_active_time, CURRENT_TIMESTAMP))
+
+             FROM TABLE(qsys2.active_job_info(detailed_info => 'ALL')) AS jobs
+
+            WHERE jobs.authorization_name = :pAuthorizationName
+
+            ORDER BY jobs.ordinal_position;
+
+ Exec SQL OPEN c_active_jobs_reader;
+
+ DoW ( 1 = 1 );
+   Exec SQL FETCH NEXT FROM c_active_jobs_reader INTO :JobInfoDS;
+   If ( SQLCode <> 0 );
+     Exec SQL CLOSE c_active_jobs_reader;
+     Leave;
+   EndIf;
+
+   yajl_BeginObj();
+
+   yajl_AddNum('ordinalPosition' :%Char(JobInfoDS.OrdinalPosition));
+   yajl_AddChar('subSystem' :%TrimR(JobInfoDS.Subsystem));
+   yajl_AddChar('jobName' :%TrimR(JobInfoDS.JobName));
+   yajl_AddChar('jobType' :%TrimR(JobInfoDS.JobType));
+   yajl_AddChar('jobStatus' :%TrimR(JobInfoDS.JobStatus));
+
+   If ( JobInfoDS.JobMessage <> '' );
+     yajl_AddChar('jobMessage' :%TrimR(JobInfoDS.JobMessage));
+   EndIf;
+
+   If ( JobInfoDS.FunctionType <> '' );
+     yajl_AddChar('functionType' :%TrimR(JobInfoDS.FunctionType));
+   EndIf;
+
+   If ( JobInfoDS.Function <> '' );
+     yajl_AddChar('function' :%TrimR(JobInfoDS.Function));
+   EndIf;
+
+   yajl_AddNum('temporaryStorage' :%Char(JobInfoDS.TemporaryStorage));
+
+   If ( JobInfoDS.ClientIPAddress <> '' );
+     yajl_AddChar('clientIPAddress' :%TrimR(JobInfoDS.ClientIPAddress));
+   EndIf;
+
+   yajl_AddChar('jobActiveTime' :%TrimR(JobInfoDS.JobActiveTime));
+
+   yajl_EndObj();
+
+ EndDo;
+
+ yajl_EndArray();
 
  Return;
 

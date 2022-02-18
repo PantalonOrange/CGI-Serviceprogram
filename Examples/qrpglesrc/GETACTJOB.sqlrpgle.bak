@@ -99,9 +99,9 @@ DCL-PROC readJobsAndCreateJSON;
   DCL-S ArrayItem IND INZ(FALSE);
   DCL-S JobCount INT(10) INZ;
   DCL-S Subsystem CHAR(10) INZ;
-  DCL-S AuthorizationName CHAR(12) INZ;
+  DCL-S AuthorizationName CHAR(10) INZ;
   DCL-S JobName VARCHAR(28) INZ;
-  DCL-S JobNameShort VARCHAR(12) INZ;
+  DCL-S JobNameShort VARCHAR(10) INZ;
   DCL-S JobType CHAR(3) INZ;
   DCL-S JobStatus CHAR(4) INZ;
   DCL-S Function CHAR(10) INZ;
@@ -112,9 +112,9 @@ DCL-PROC readJobsAndCreateJSON;
 
   // retrieve parameters/values by name
   Subsystem = getValueByName('sbs' :pInputParmDS);
-  AuthorizationName = '%' + %Trim(getValueByName('usr' :pInputParmDS)) + '%';
+  AuthorizationName = getValueByName('usr' :pInputParmDS);
   JobName = %TrimR(getValueByName('job' :pInputParmDS));
-  JobNameShort = '%' + %TrimR(getValueByName('jobshort' :pInputParmDS)) + '%';
+  JobNameShort = %TrimR(getValueByName('jobshort' :pInputParmDS));
   JobType = getValueByName('jobtype' :pInputParmDS);
   JobStatus = getValueByName('jobsts' :pInputParmDS);
   Function = getValueByName('fct' :pInputParmDS);
@@ -174,12 +174,14 @@ DCL-PROC readJobsAndCreateJSON;
                                         ELSE UPPER(:Subsystem) END
 
                -- fetch with user name or all
-              AND CAST(jobs.authorization_name AS CHAR(12))
-                LIKE TRIM(UPPER(:AuthorizationName))
+              AND jobs.authorization_name = CASE WHEN :AuthorizationName = ''
+                                                 THEN jobs.authorization_name
+                                                 ELSE UPPER(:AuthorizationName) END
 
                -- fetch with job name short or all
-              AND CAST(jobs.job_name_short AS CHAR(12))
-                LIKE TRIM(UPPER(:JobNameShort))
+              AND jobs.job_name_short = CASE WHEN :JobNameShort = ''
+                                             THEN jobs.job_name_short
+                                             ELSE UPPER(:JobNameShort) END
 
                -- fetch with job name or all
               AND jobs.job_name = CASE WHEN :JobName = ''
@@ -568,7 +570,7 @@ DCL-PROC executeCommandOverJSON;
   DCL-S Val Like(Yajl_Val) INZ;
   DCL-S Success IND INZ(TRUE);
   DCL-S Index INT(10) INZ;
-  DCL-S Command CHAR(1024) INZ;
+  DCL-S Command CHAR(128) INZ;
   DCL-S ExecuteCommandMessage CHAR(128) INZ;
  //------------------------------------------------------------------------
 
@@ -641,12 +643,12 @@ END-PROC;
 // execute given command
 DCL-PROC executeCommand;
   DCL-PI *N IND;
-    pCommand VARCHAR(1024) CONST;
+    pCommand VARCHAR(128) CONST;
     pErrorMessage CHAR(128);
   END-PI;
 
   DCL-S Success IND INZ(TRUE);
-  DCL-S Command VARCHAR(1024) INZ;
+  DCL-S Command VARCHAR(128) INZ;
  //------------------------------------------------------------------------
 
   Clear pErrorMessage;
