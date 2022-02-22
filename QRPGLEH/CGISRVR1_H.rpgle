@@ -98,7 +98,8 @@ DCL-DS InputParmDS_T QUALIFIED TEMPLATE;
  RemoteIP CHAR(15);
  RemoteHost CHAR(128);
  UserAgent CHAR(128);
- CorrespondingFileMultiPart CHAR(128);
+ PathInfo CHAR(128);
+ QueryString CHAR(128);
  SeperatedKeysDS LIKEDS(SeperatedKeysDS_T) DIM(MAX_SEP_KEYS);
 END-DS;
 

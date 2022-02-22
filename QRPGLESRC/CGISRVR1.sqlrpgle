@@ -48,7 +48,6 @@ DCL-PROC getHTTPInput EXPORT;
  DCL-S Receiver POINTER;
  DCL-S ContentLength INT(10) INZ;
  DCL-S BytesAvailable INT(10) INZ;
- DCL-S QueryString CHAR(128) INZ;
  //------------------------------------------------------------------------
 
  /INCLUDE QRPGLECPY,SQLOPTIONS
@@ -69,9 +68,10 @@ DCL-PROC getHTTPInput EXPORT;
  EndIf;
 
  Monitor;
-   QueryString = %Str(getEnvironmentVariable('QUERY_STRING' :ErrorDS));
+   InputParmDS.QueryString =
+     %Str(getEnvironmentVariable('QUERY_STRING' :ErrorDS));
    On-Error;
-     Clear QueryString;
+     Clear InputParmDS.QueryString;
  EndMon;
 
  Receiver = getEnvironmentVariable('AUTH_TYPE' :ErrorDS);
@@ -99,10 +99,15 @@ DCL-PROC getHTTPInput EXPORT;
    InputParmDS.UserAgent = %Str(Receiver);
  EndIf;
 
+ Receiver = getEnvironmentVariable('PATH_TRANSLATED' :ErrorDS);
+ If ( Receiver <> *NULL );
+   InputParmDS.PathInfo = %Str(Receiver);
+ EndIf;
+
  Select;
    When ( InputParmDS.Method = 'GET' );
-     If ( QueryString <> '' );
-       InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
+     If ( InputParmDS.QueryString <> '' );
+       InputParmDS.SeperatedKeysDS = parseQueryString(InputParmDS.QueryString);
      EndIf;
 
    When ( InputParmDS.Method = 'POST' ) Or ( InputParmDS.Method = 'PUT' );
@@ -113,8 +118,8 @@ DCL-PROC getHTTPInput EXPORT;
          InputParmDS.Data = %Alloc(ContentLength);
          readStdIn(InputParmDS.Data :ContentLength :BytesAvailable :ErrorDS);
          InputParmDS.DataLength = BytesAvailable;
-         If ( QueryString <> '' );
-           InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
+         If ( InputParmDS.QueryString <> '' );
+           InputParmDS.SeperatedKeysDS = parseQueryString(InputParmDS.QueryString);
          EndIf;
 
        When ( %Scan('text/plain' :InputParmDS.ContentType) > 0 );
@@ -122,17 +127,19 @@ DCL-PROC getHTTPInput EXPORT;
          InputParmDS.Data = %Alloc(ContentLength);
          readStdIn(InputParmDS.Data :ContentLength :BytesAvailable :ErrorDS);
          InputParmDS.DataLength = BytesAvailable;
-         If ( QueryString <> '' );
-           InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
+         If ( InputParmDS.QueryString <> '' );
+           InputParmDS.SeperatedKeysDS = parseQueryString(InputParmDS.QueryString);
          EndIf;
 
      EndSl;
    When ( InputParmDS.Method = 'DELETE' );
-     If ( QueryString <> '' );
-       InputParmDS.SeperatedKeysDS = parseQueryString(QueryString);
+     If ( InputParmDS.QueryString <> '' );
+       InputParmDS.SeperatedKeysDS = parseQueryString(InputParmDS.QueryString);
      EndIf;
 
  EndSl;
+
+ writeAPILogEntry(InputParmDS);
 
  Return InputParmDS;
 
@@ -421,5 +428,29 @@ DCL-PROC seperateValues;
  SeperatedKeysDS.ExtractedValue = ResultDS(2).Element;
 
  Return SeperatedKeysDS;
+
+END-PROC;
+
+//#########################################################################
+// Write log entry
+DCL-PROC writeAPILogEntry;
+ DCL-PI *N;
+  pInputParmDS LIKEDS(InputParmDS_T) CONST;
+ END-PI;
+ //------------------------------------------------------------------------
+
+ Exec SQL INSERT INTO logapi
+          (api_user, api_method, api_content_type, api_authorization_type,
+           api_remote_ip, api_remote_host, api_user_agent, api_query_string,
+           api_path_info)
+          VALUES(NULLIF(RTRIM(:pInputParmDS.RemoteUser), ''),
+                 NULLIF(RTRIM(:pInputParmDS.Method), ''),
+                 NULLIF(RTRIM(:pInputParmDS.ContentType), ''),
+                 NULLIF(RTRIM(:pInputParmDS.AuthType), ''),
+                 NULLIF(RTRIM(:pInputParmDS.RemoteIP), ''),
+                 NULLIF(RTRIM(:pInputParmDS.RemoteHost), ''),
+                 NULLIF(RTRIM(:pInputParmDS.UserAgent), ''),
+                 NULLIF(RTRIM(:pInputParmDS.QueryString), ''),
+                 NULLIF(RTRIM(:pInputParmDS.PathInfo), ''));
 
 END-PROC;
