@@ -79,19 +79,24 @@ DCL-PROC readObjectStatisticsAndCreateJSON;
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S ObjectCount INT(10) INZ;
- DCL-S ObjectName CHAR(10) INZ;
+ DCL-S ObjectName CHAR(12) INZ;
  DCL-S ObjectSchema CHAR(10) INZ;
  DCL-S ObjectType CHAR(8) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
  // retrieve parameters/values by name
- ObjectName = getValueByName('obj' :pInputParmDS);
+ ObjectName = '%' + %Trim(getValueByName('obj' :pInputParmDS)) + '%';
  ObjectSchema = getValueByName('lib' :pInputParmDS);
  ObjectType = getValueByName('objtype' :pInputParmDS);
+
+ If ( ObjectSchema = '' );
+   ObjectSchema = '*ALL';
+ EndIf;
  If ( ObjectType = '' );
    ObjectType = 'ALL';
  EndIf;
+ ObjectType = '*' + %ScanRpl('*' :'' :ObjectType);
 
  yajl_BeginObj();
 
@@ -139,10 +144,7 @@ DCL-PROC readObjectStatisticsAndCreateJSON;
                          (object_schema => UPPER(RTRIM(:ObjectSchema)),
                           objtypelist => UPPER(RTRIM(:ObjectType)))) AS statistics
 
-            WHERE statistics.objname
-                = CASE WHEN :ObjectName = ''
-                       THEN statistics.objname
-                       ELSE UPPER(:ObjectName) END;
+            WHERE TRIM(UPPER(statistics.objname)) LIKE TRIM(UPPER(:ObjectName));
 
  Exec SQL OPEN c_object_statistics_reader;
 
