@@ -26,6 +26,8 @@
 //  - outqlib = Output Queue Library
 //  - usr = Authorization name for spoolfile owner
 //  - splf = Name for spooled file
+//  - nbr = Spooled file number
+//  - job = Jobname (format: 000000/user/sessionname)
 //  - limit = Maximum rows to fetch
 
 
@@ -72,11 +74,13 @@ DCL-PROC readOutputQueueEntriesAndCreateJSON;
  DCL-S FirstRun IND INZ(TRUE);
  DCL-S ArrayItem IND INZ(FALSE);
  DCL-S EntryCount INT(10) INZ;
+ DCL-S SpooledFileNumber INT(10) INZ;
  DCL-S LimitFetch INT(10) INZ(100);
  DCL-S OutQName CHAR(10) INZ;
  DCL-S OutQLib CHAR(10) INZ;
  DCL-S AuthorizationName CHAR(10);
  DCL-S SpooledFileName CHAR(12);
+ DCL-S JobnameLong CHAR(28) INZ;
  DCL-S ErrorMessage VARCHAR(500) INZ;
  //------------------------------------------------------------------------
 
@@ -85,6 +89,13 @@ DCL-PROC readOutputQueueEntriesAndCreateJSON;
  OutQLib = getValueByName('outqlib' :pInputParmDS);
  AuthorizationName = getValueByName('usr' :pInputParmDS);
  SpooledFileName = '%' + %Trim(getValueByName('splf' :pInputParmDS)) + '%';
+ JobnameLong = getValueByName('job' :pInputParmDS);
+
+ Monitor;
+   SpooledFileNumber = %Int(getValueByName('nbr' :pInputParmDS));
+   On-Error;
+     Reset SpooledFileNumber;
+ EndMon;
 
  Monitor;
    LimitFetch = %Int(getValueByName('limit' :pInputParmDS));
@@ -136,6 +147,16 @@ DCL-PROC readOutputQueueEntriesAndCreateJSON;
 
               AND CAST(entry.spooled_file_name AS CHAR(12))
                    LIKE TRIM(UPPER(:SpooledFileName))
+
+              AND entry.file_number =
+                   CASE WHEN :SpooledFileNumber = 0
+                        THEN entry.file_number
+                        ELSE :SpooledFileNumber END
+
+              AND entry.job_name =
+                   CASE WHEN :JobnameLong = ''
+                        THEN entry.job_name
+                        ELSE UPPER(:JobnameLong) END
 
             ORDER BY entry.output_queue_library_name,
                      entry.output_queue_name,

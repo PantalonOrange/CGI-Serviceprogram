@@ -99,9 +99,19 @@ DCL-PROC getHTTPInput EXPORT;
    InputParmDS.UserAgent = %Str(Receiver);
  EndIf;
 
- Receiver = getEnvironmentVariable('PATH_TRANSLATED' :ErrorDS);
+ Receiver = getEnvironmentVariable('PATH_INFO' :ErrorDS);
  If ( Receiver <> *NULL );
    InputParmDS.PathInfo = %Str(Receiver);
+ Else;
+   Receiver = getEnvironmentVariable('PATH_TRANSLATED' :ErrorDS);
+   If ( Receiver <> *NULL );
+     InputParmDS.PathInfo = %Str(Receiver);
+   Else;
+     Receiver = getEnvironmentVariable('SCRIPT_NAME' :ErrorDS);
+     If ( Receiver <> *NULL );
+       InputParmDS.PathInfo = %Str(Receiver);
+     EndIf;
+   EndIf;
  EndIf;
 
  Select;
@@ -188,6 +198,9 @@ DCL-PROC getHTTPHeader EXPORT;
    When ( pType = HTTP_JSON_OK );
      HTTPHeader = 'Status: 200 OK' + CRLF +
                    'Content-Type: application/json; charset=utf-8' + CRLF + CRLF;
+   When ( pType = HTTP_PDF_OK );
+     HTTPHeader = 'Status: 200 OK' + CRLF +
+                   'Content-Type: application/pdf; charset=utf-8' + CRLF + CRLF;
    When ( pType = HTTP_OK );
      HTTPHeader = 'Status: 200 OK' + CRLF +
                    'Content-Type: text/plain' + CRLF + CRLF;
