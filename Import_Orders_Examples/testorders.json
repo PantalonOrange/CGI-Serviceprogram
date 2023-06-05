@@ -1,0 +1,87 @@
+{
+  "orderInbound": {
+    "sender": "2000001111116",
+    "recipient": "2000001111116",
+    "edifactType": "ORDERS",
+    "messageNumber": "222",
+    "messageDate": "230602",
+    "messageTime": "0912",
+    "messageType": "220",
+    "ghpMode": "O",
+    "orderNumber": "222",
+    "dtmHeader": [
+      {
+        "dtmType": "137",
+        "dtmDate": "20230602"
+      },
+      {
+        "dtmType": "2",
+        "dtmDate": "20230603"
+      },
+      {
+        "dtmType": "64",
+        "dtmDate": "20230603"
+      },
+      {
+        "dtmType": "63",
+        "dtmDate": "20230603"
+      }
+    ],
+    "nadHeader": [
+      {
+        "nadType": "BY",
+        "nadGLN": "2000001111116"
+      },
+      {
+        "nadType": "DP",
+        "nadGLN": "2000001111116"
+      },
+      {
+        "nadType": "SU",
+        "nadGLN": "2000001111116"
+      },
+      {
+        "nadType": "IV",
+        "nadGLN": "2000001111116"
+      }
+    ],
+    "lines": [
+      {
+        "lineNumber": "1",
+        "gtin": "1234567890123",
+        "itemNumber": "63",
+        "itemType": "SA",
+        "quantityLine": [
+          {
+            "quantityType": "21",
+            "quantityValue": "5"
+          }
+        ]
+      },
+      {
+        "lineNumber": "2",
+        "gtin": "1234567890123",
+        "itemNumber": "05",
+        "itemType": "SA",
+        "quantityLine": [
+          {
+            "quantityType": "21",
+            "quantityValue": "5"
+          }
+        ]
+      },
+      {
+        "lineNumber": "3",
+        "gtin": "1234567890123",
+        "itemNumber": "12",
+        "itemType": "SA",
+        "quantityLine": [
+          {
+            "quantityType": "21",
+            "quantityValue": "5"
+          }
+        ]
+      }
+    ]
+  }
+}
