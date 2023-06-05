@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021,2022 Christian Brunner
+//- Copyright (c) 2021-2023 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -450,12 +450,30 @@ DCL-PROC writeAPILogEntry;
  DCL-PI *N;
   pInputParmDS LIKEDS(InputParmDS_T) CONST;
  END-PI;
+
+ DCL-S Data CHAR(16000) INZ;
  //------------------------------------------------------------------------
 
+ If ( pInputParmDS.Data <> *NULL ) And ( pInputParmDS.DataLength > 0 );
+   // Try to geht the data from posted buffer
+   Monitor;
+     Data = %Str(pInputParmDS.Data);
+     translateData(%Addr(Data) :pInputParmDS.DataLength :UTF8 :LOCAL_CCSID);
+     If ( Data <> '' ) And ( pInputParmDS.DataLength > 0 );
+       Data = %SubSt(Data :1 :pInputParmDS.DataLength);
+     EndIf;
+     On-Error;
+       Reset Data;
+   EndMon;
+ Else;
+   Reset Data;
+ EndIf;
+
  Exec SQL INSERT INTO logapi
+              -- Write log entry
           (api_user, api_method, api_content_type, api_authorization_type,
            api_remote_ip, api_remote_host, api_user_agent, api_query_string,
-           api_path_info)
+           api_path_info, api_post_data)
           VALUES(NULLIF(RTRIM(:pInputParmDS.RemoteUser), ''),
                  NULLIF(RTRIM(:pInputParmDS.Method), ''),
                  NULLIF(RTRIM(:pInputParmDS.ContentType), ''),
@@ -464,6 +482,7 @@ DCL-PROC writeAPILogEntry;
                  NULLIF(RTRIM(:pInputParmDS.RemoteHost), ''),
                  NULLIF(RTRIM(:pInputParmDS.UserAgent), ''),
                  NULLIF(RTRIM(:pInputParmDS.QueryString), ''),
-                 NULLIF(RTRIM(:pInputParmDS.PathInfo), ''));
+                 NULLIF(RTRIM(:pInputParmDS.PathInfo), ''),
+                 NULLIF(RTRIM(:Data), ''));
 
 END-PROC;

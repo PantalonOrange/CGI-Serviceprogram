@@ -1,5 +1,5 @@
 **FREE
-//- Copyright (c) 2021,2022 Christian Brunner
+//- Copyright (c) 2021-2023 Christian Brunner
 //-
 //- Permission is hereby granted, free of charge, to any person obtaining a copy
 //- of this software and associated documentation files (the "Software"), to deal
@@ -77,14 +77,30 @@ END-PR;
 
 // Constants to get http-header by type
 DCL-C HTTP_JSON_OK 0;
-DCL-C HTTP_OK 1;
-DCL-C HTTP_BAD_REQUEST 2;
-DCL-C HTTP_UNAUTHORIZED 3;
-DCL-C HTTP_FORBIDDEN 4;
-DCL-C HTTP_NOT_FOUND 5;
+DCL-C HTTP_PDF_OK 1;
+DCL-C HTTP_OK 2;
+DCL-C HTTP_BAD_REQUEST 3;
+DCL-C HTTP_UNAUTHORIZED 4;
+DCL-C HTTP_FORBIDDEN 5;
+DCL-C HTTP_NOT_FOUND 6;
+
+// HTTP_Codes
+DCL-C HTTP_CODE_OK 200;
+DCL-C HTTP_CODE_CREATED 201;
+DCL-C HTTP_CODE_ACCEPTED 202;
+DCL-C HTTP_CODE_NO_CONTENT 204;
+DCL-C HTTP_CODE_BAD_REQUEST 400;
+DCL-C HTTP_CODE_UNAUTHORIZED 401;
+DCL-C HTTP_CODE_METHOD_NOT_ALLOWED 405;
+DCL-C HTTP_CODE_UNSUPPORTED_MEDIA_TYPE 415;
+DCL-C HTTP_CODE_INTERNAL_SERVER_ERROR 500;
+DCL-C HTTP_CODE_NOT_IMPLEMENTED 501;
+DCL-C HTTP_CODE_SERVICE_UNAVAILABLE 503;
+DCL-C HTTP_CODE_NOT_EXTENDED 510;
 
 // Constant fields to translate between codepages
 DCL-C UTF8 1208;
+DCL-C PCASCII 1252;
 DCL-C LOCAL_CCSID 0;
 
 // Template DS to hold data from http-server
