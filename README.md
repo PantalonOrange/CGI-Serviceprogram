@@ -65,7 +65,7 @@ Object statistic infos:<br>
 Or try them with my small windows app written in vb.net:<br>
 https://github.com/PantalonOrange/Control-for-IBM-i
 <br><br>
-## Pocedures within the serviceprogram
+## Procedures within the serviceprogram
 
 1. getHTTPInput:
 Reads the stream and fill in the neccessary variables like "REQUEST_METHOD" and so on.<br>
